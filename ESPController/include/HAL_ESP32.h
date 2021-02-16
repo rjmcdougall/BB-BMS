@@ -151,6 +151,13 @@ public:
         return TCA6408_Value;
     }
 
+    esp_err_t writeByte(i2c_port_t i2c_num, uint8_t dev, uint8_t reg, uint8_t data);
+    esp_err_t readByte(i2c_port_t i2c_num, uint8_t dev, uint8_t reg, uint8_t *data);
+    esp_err_t readMultipleBytes(i2c_port_t i2c_num, uint8_t dev, uint8_t reg, uint8_t data[], int num);
+    esp_err_t writeMultipleBytes(i2c_port_t i2c_num, uint8_t deviceAddress, uint8_t i2cregister, uint8_t data[], int num);
+    bool isConnected(i2c_port_t i2c_num, uint8_t dev);
+    esp_err_t directCommand(i2c_port_t i2c_num, uint8_t dev, uint8_t command, uint8_t data[], int num);
+
 private:
     SemaphoreHandle_t xVSPIMutex = NULL;
     SemaphoreHandle_t xi2cMutex = NULL;
@@ -160,8 +167,7 @@ private:
     //Copy of pin state for TCA6408
     uint8_t TCA6408_Value;
 
-    esp_err_t writeByte(i2c_port_t i2c_num, uint8_t dev, uint8_t reg, uint8_t data);
-    uint8_t readByte(i2c_port_t i2c_num, uint8_t dev, uint8_t reg);
+
 };
 
 #endif

@@ -7,7 +7,8 @@ Import ('env')
 # the relevant version depending on operating system automatically, but
 # for now they are embedded in the project
 
-mklittlefs='x86_64-linux-gnu-mklittlefs'
+#mklittlefs='x86_64-linux-gnu-mklittlefs'
+mklittlefs='generic-osx-mklittlefs'
 
 if os.name == 'nt':
     mklittlefs='x86_64-w64-mklittlefs.exe'

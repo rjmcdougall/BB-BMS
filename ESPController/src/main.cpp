@@ -53,6 +53,7 @@ static const char *TAG = "diybms";
 
 #include "defines.h"
 #include "HAL_ESP32.h"
+#include "bq76952.h"
 
 //SDM sdm(SERIAL_RS485, 9600, RS485_ENABLE, SERIAL_8N1, RS485_RX, RS485_TX); // pins for DIYBMS => RX pin 21, TX pin 22
 
@@ -93,10 +94,18 @@ static const char *TAG = "diybms";
 //Our CS pin is directly connected to ground as the TFT display is the only item on the HSPI bus
 #undef TFT_CS
 */
+
 #include "TFT_eSPI.h"
 
 TFT_eSPI tft = TFT_eSPI();
+
+#define BQ_ADDR 0x8
+
+
 HAL_ESP32 hal;
+
+bq76952 bq = bq76952(BQ_ADDR, &hal);
+
 XPT2046_Touchscreen touchscreen(TOUCH_CHIPSELECT, TOUCH_IRQ); // Param 2 - Touch IRQ Pin - interrupt enabled polling
 
 volatile bool emergencyStop = false;
@@ -177,6 +186,13 @@ void QueueLED(uint8_t bits)
   m.command = 0x03;
   //Lowest 3 bits are RGB led GREEN/RED/BLUE
   m.data = bits & B00000111;
+  xQueueSendToBack(queue_i2c, &m, 10 / portTICK_PERIOD_MS);
+}
+
+void QueueReadCells()
+{
+  i2cQueueMessage m;
+  m.command = 0x80;
   xQueueSendToBack(queue_i2c, &m, 10 / portTICK_PERIOD_MS);
 }
 
@@ -563,6 +579,7 @@ void i2c_task(void *param)
 
     if (xQueueReceive(queue_i2c, &m, portMAX_DELAY) == pdPASS)
     {
+#ifdef RMC
       // do some i2c task
       if (m.command == 0x01)
       {
@@ -611,6 +628,42 @@ void i2c_task(void *param)
       {
         //Set state of relays
         hal.SetOutputState(m.command - 0xe0, (RelayState)m.data);
+      }
+#endif
+      // 	void initBQ(void);
+	    // unsigned int directCommand(byte);
+	    // void subCommand(unsigned int);
+	    // unsigned int subCommandResponseInt(void);
+	    // void enterConfigUpdate(void);
+	    // void exitConfigUpdate(void);
+	    // byte computeChecksum(byte, byte);
+	    // void writeDataMemory(unsigned int , unsigned int, byte);
+	    // byte readDataMemory(unsigned int);
+      if (m.command == 0x80)
+      {
+        CellModuleInfo *cellptr;
+        // BQ
+        unsigned int cells[19];
+        bq.getAllCellVoltages(&cells[0]);
+        for (int i = 0; i < 16; i++) {
+          ESP_LOGD(TAG, "cell %i %d", i, cells[i]);
+          cellptr = &cmi[i];
+          if (cells[i] > 0) {
+          cellptr->voltagemV = cells[i];
+          if (cellptr->voltagemV > 0)
+          { 
+            cellptr->valid = true;
+          }
+          if (cellptr->voltagemV < cellptr->voltagemVMin)
+          { 
+            cellptr->voltagemVMin = cellptr->voltagemV;
+          }
+          if (cellptr->voltagemV > cellptr->voltagemVMax)
+          { 
+            cellptr->voltagemVMax = cellptr->voltagemV;
+          }
+          }
+        }
       }
     }
   }
@@ -900,6 +953,8 @@ void ProcessRules()
 
   rules.rule_outcome[Rule::BMSError] = false;
 
+  QueueReadCells();
+
   uint16_t totalConfiguredModules = TotalNumberOfCells();
   if (totalConfiguredModules > maximum_controller_cell_modules)
   {
@@ -1048,6 +1103,8 @@ void rules_task(void *param)
     }
 #endif
 
+#ifdef RMC
+
     RelayState relay[RELAY_TOTAL];
 
     //Set defaults based on configuration
@@ -1120,6 +1177,7 @@ void rules_task(void *param)
       //Fire task to record state of outputs to SD Card
       xTaskNotify(sdcardlog_outputs_task_handle, 0x00, eNotifyAction::eNoAction);
     }
+#endif
   }
 }
 
@@ -1133,7 +1191,7 @@ void enqueue_task(void *param)
 
     QueueLED(RGBLED::Green);
     //Fire task to switch off LED in a few ms
-    xTaskNotify(ledoff_task_handle, 0x00, eNotifyAction::eNoAction);
+    // RMC xTaskNotify(ledoff_task_handle, 0x00, eNotifyAction::eNoAction);
 
     uint16_t i = 0;
     uint16_t max = TotalNumberOfCells();
@@ -2119,14 +2177,14 @@ void setup()
 
   hal.ConfigurePins(WifiPasswordClear);
   hal.ConfigureI2C(TCA6408Interrupt, TCA9534AInterrupt);
-  hal.ConfigureVSPI();
+  //hal.ConfigureVSPI();
 
   //Switch CANBUS off, saves a couple of milliamps
-  hal.CANBUSEnable(false);
+  //hal.CANBUSEnable(false);
 
   SetControllerState(ControllerState::PowerUp);
 
-  hal.Led(0);
+  //hal.Led(0);
 
   if (!LITTLEFS.begin(false))
   {
@@ -2260,12 +2318,15 @@ TEST CAN BUS
   }
   */
 
-  hal.ConfigureVSPI();
+  //hal.ConfigureVSPI();
+
+  #ifdef RMC
   init_tft_display();
 
   //Init the touch screen
   touchscreen.begin(hal.vspi);
   touchscreen.setRotation(3);
+  #endif
 
   /*
 Used for measuring current usage of controller board, with CAN bus diabled, approx 25mA, enabled 28mA
@@ -2280,9 +2341,9 @@ esp_deep_sleep_start();
 
   //Create i2c task on CPU 0 (normal code runs on CPU 1)
   xTaskCreatePinnedToCore(i2c_task, "i2c", 2048, nullptr, configMAX_PRIORITIES - 1, &i2c_task_handle, 0);
-  xTaskCreatePinnedToCore(ledoff_task, "ledoff", 1048, nullptr, 1, &ledoff_task_handle, 0);
+  //xTaskCreatePinnedToCore(ledoff_task, "ledoff", 1048, nullptr, 1, &ledoff_task_handle, 0);
 
-  xTaskCreate(avrprog_task, "avrprog", 3000, &_avrsettings, configMAX_PRIORITIES - 5, &avrprog_task_handle);
+  //xTaskCreate(avrprog_task, "avrprog", 3000, &_avrsettings, configMAX_PRIORITIES - 5, &avrprog_task_handle);
 
   xTaskCreate(wifiresetdisable_task, "wifidbl", 1048, nullptr, 1, &wifiresetdisable_task_handle);
 
@@ -2299,7 +2360,7 @@ esp_deep_sleep_start();
   xTaskCreate(replyqueue_task, "rxq", 1024, nullptr, configMAX_PRIORITIES - 2, &replyqueue_task_handle);
   xTaskCreate(lazy_tasks, "lazyt", 1024, nullptr, 1, &lazy_task_handle);
 
-  xTaskCreate(pulse_relay_off_task, "pulse", 1024, nullptr, configMAX_PRIORITIES - 1, &pulse_relay_off_task_handle);
+  //xTaskCreate(pulse_relay_off_task, "pulse", 1024, nullptr, configMAX_PRIORITIES - 1, &pulse_relay_off_task_handle);
 
   //Pre configure the array
   memset(&cmi, 0, sizeof(cmi));
@@ -2317,6 +2378,7 @@ esp_deep_sleep_start();
 
   LoadConfiguration();
 
+#ifdef RMC
   //Set relay defaults
   for (int8_t y = 0; y < RELAY_TOTAL; y++)
   {
@@ -2324,6 +2386,7 @@ esp_deep_sleep_start();
     //Set relay defaults
     hal.SetOutputState(y, mysettings.rulerelaydefault[y]);
   }
+  #endif
   //Fire task to record state of outputs to SD Card
   xTaskNotify(sdcardlog_outputs_task_handle, 0x00, eNotifyAction::eNoAction);
 
