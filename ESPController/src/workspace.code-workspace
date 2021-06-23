@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"name": "ttgo-tbeam-hw",
+			"path": "../../ttgo-tbeam-hw"
+		}
+	],
+	"settings": {}
+}
