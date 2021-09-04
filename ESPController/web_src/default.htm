@@ -16,7 +16,7 @@
     </script>
     <script type='text/javascript' src='jquery.js' integrity='%integrity_file_jquery_js%' crossorigin='anonymous'>
     </script>
-    <title>DIY BMS CONTROLLER v4</title>
+    <title>BurnerBoard BMS</title>
 </head>
 
 <body>
@@ -36,7 +36,7 @@
     </div>
 
     <div class="header">
-        <div class="logocontainer"><img class="logo" src="logo.png" width="152" height="48" alt="DIYBMS" /></div>
+        <div class="logocontainer"><img class="logo" src="logo.png" width="152" height="48" alt="BurnerBoard BMS" /></div>
         <div class="header-right">
             <a id="home" class="active" href="#home">Home</a>
             <a id="modules" href="#modules">Modules</a>
@@ -114,12 +114,11 @@
         </div>
         <div class="region">
             <h2>WARNING</h2>
-            <p>This is a DIY product/solution so don’t use this for safety critical systems or in any situation where
-                there could be a risk to life.</p>
-            <p>There is no warranty, it may not work as expected or at all.</p>
-            <p>The use of this project is done so entirely at your own risk. It may involve electrical voltages which
-                could kill - if in doubt, seek help.</p>
-            <p>The use of this project may not be compliant with local laws or regulations - if in doubt, seek help.</p>
+            <p>This is a dangerous product that will fail and cause injury often. Our policy is safety 3rd. Use this for all safety critical stunts or in any situation where there could be a risk to life.</p>
+            <p>It WILL explode and catch fire, it may not work as expected or at all.</p>
+            <p>The use of this project will involve electrical voltages which
+                will kill - if in doubt, drink tequilla.</p>
+            <p>The use of this project will make you hot. It will also upset local laws or regulations - if in doubt, 2nd tequilla shot.</p>
         </div>
         <div class="region">
             <h2>License</h2>
@@ -328,7 +327,7 @@
     <div class="page" id="rulesPage">
         <h1>Rules</h1>
         <div class="region">
-            <p id="rt1">DIYBMS supports relay modules to safely disconnect chargers, contactors or consumers. The rules
+            <p id="rt1">BurnerBoard BMS supports relay modules to safely disconnect chargers, contactors or consumers. The rules
                 allow you
                 to configure the relays for your situation.</p>
             <p id="rt2">Rules are processed from lowest priorty to highest (bottom up). Control the relays using the
@@ -509,8 +508,21 @@
     <div class="page" id="settingsPage">
         <h1>Controller Settings</h1>
         <div class="region">
+            <h2>Controller Parameters</h2>
+            <p>BurnerBoard BMS is connected by CANBUS to VESC/other devices and i2c to BMS modules.</p>
+            <form id="banksForm" method="POST" action="savecontrollerconfig.json" autocomplete="off">
+                <div class="controller">
+                    <div>
+                        <label for="controller_id">Controller CAN ID</label>
+                        <input type="number" min="1" max="255" step="1" name="controller_id" id="controller_id">
+                    </div>
+                    <input type="submit" value="Save controller settings" />
+                </div>
+            </form>
+        </div>
+        <div class="region">
             <h2>Modules &amp; Banks</h2>
-            <p>DIYBMS supports up to 100 modules in total. These modules can be split into banks to support parallel
+            <p>BurnerBoard BMS supports up to 100 modules in total. These modules can be split into banks to support parallel
                 configurations.</p>
             <p>Example: You have 16 cells configured as 8 in series and 2 in parallel (8S2P).</p>
             <form id="banksForm" method="POST" action="savebankconfig.json" autocomplete="off">

@@ -88,6 +88,7 @@ private:
     static void saveMQTTSetting(AsyncWebServerRequest *request);
     static void saveGlobalSetting(AsyncWebServerRequest *request);
     static void saveBankConfiguration(AsyncWebServerRequest *request);
+    static void saveControllerConfiguration(AsyncWebServerRequest *request);
     static void saveRuleConfiguration(AsyncWebServerRequest *request);
     static void saveNTP(AsyncWebServerRequest *request);
     static void saveStorage(AsyncWebServerRequest *request);

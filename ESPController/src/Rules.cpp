@@ -23,7 +23,7 @@ void Rules::ClearValues()
     moduleHasExternalTempSensor = false;
 }
 
-//Looking at individual voltages and temperatures and sum up pack voltages.
+//Looking at individual voltages and emperatures and sum up pack voltages.
 void Rules::ProcessCell(uint8_t bank, CellModuleInfo *c)
 {
     if (c->valid == false)
@@ -92,8 +92,15 @@ uint16_t Rules::VoltageRangeInBank(uint8_t bank)
     return highestvoltageinpack[bank] - lowestvoltageinpack[bank];
 }
 
-void Rules::ProcessBank(uint8_t bank)
+void Rules::ProcessBank(uint8_t bank, PackInfo *p)
 {
+    // TODO: make these per-bank
+    soc = (uint8_t) p->soc;
+    soh = (uint8_t) p->soh;
+    current = p->current;
+    remainingCapacityMah = p->remainingCapacityAh * 1000;
+    fullChargeCapacityMah = p->fullChargeCapacityAh * 1000;
+
     //Combine the voltages - work out the highest and lowest pack voltages
     if (packvoltage[bank] > highestPackVoltage)
     {

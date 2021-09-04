@@ -566,6 +566,31 @@ void DIYBMSServer::saveBankConfiguration(AsyncWebServerRequest *request)
   }
 }
 
+void DIYBMSServer::saveControllerConfiguration(AsyncWebServerRequest *request)
+{
+  if (!validateXSS(request))
+    return;
+
+  uint8_t controller_id = 0x10;
+
+  if (request->hasParam("controller_id", true))
+  {
+    AsyncWebParameter *p1 = request->getParam("controller_id", true);
+    controller_id = p1->value().toInt();
+  }
+
+  if (controller_id > 0) {
+    _mysettings->controller_id = controller_id;
+    saveConfiguration();
+
+    SendSuccess(request);
+  }
+  else
+  {
+    SendFailure(request);
+  }
+}
+
 void DIYBMSServer::saveMQTTSetting(AsyncWebServerRequest *request)
 {
   if (!validateXSS(request))
@@ -1501,12 +1526,80 @@ void DIYBMSServer::monitor2(AsyncWebServerRequest *request)
 
     response->print(_rules->VoltageRangeInBank(i));
   }
+
+ response->print("]");
+
+  response->print(comma);
+
+    response->print(F("\"soc\":["));
+
+  for (uint8_t i = 0; i < _mysettings->totalNumberOfBanks; i++)
+  {
+    //Comma if not zero
+    if (i)
+      response->print(comma);
+
+    // TODO: change rules to hold per bank
+    response->print(_rules->soc);
+  }
+   response->print("]");
+
+  response->print(comma);
+
+    response->print(F("\"soh\":["));
+
+  for (uint8_t i = 0; i < _mysettings->totalNumberOfBanks; i++)
+  {
+    //Comma if not zero
+    if (i)
+      response->print(comma);
+
+    response->print(_rules->soh);
+  }
   response->print("]");
 
   response->print(comma);
-  response->print(F("\"current\":["));
-  response->print(null);
+
+    response->print(F("\"remainingCapacityMah\":["));
+
+  for (uint8_t i = 0; i < _mysettings->totalNumberOfBanks; i++)
+  {
+    //Comma if not zero
+    if (i)
+      response->print(comma);
+
+    response->print(_rules->remainingCapacityMah);
+  }
   response->print("]");
+
+ response->print(comma);
+
+    response->print(F("\"fullChargeCapacityMah\":["));
+
+  for (uint8_t i = 0; i < _mysettings->totalNumberOfBanks; i++)
+  {
+    //Comma if not zero
+    if (i)
+      response->print(comma);
+
+    response->print(_rules->fullChargeCapacityMah);
+  }
+  response->print("]");
+
+ response->print(comma);
+
+    response->print(F("\"current\":["));
+
+  for (uint8_t i = 0; i < _mysettings->totalNumberOfBanks; i++)
+  {
+    //Comma if not zero
+    if (i)
+      response->print(comma);
+
+    response->print(_rules->current);
+  }
+  response->print("]");
+ 
 
   //The END...
   response->print('}');
@@ -1758,6 +1851,7 @@ void DIYBMSServer::StartServer(AsyncWebServer *webserver,
   _myserver->on("/savemqtt.json", HTTP_POST, DIYBMSServer::saveMQTTSetting);
   _myserver->on("/saveinfluxdb.json", HTTP_POST, DIYBMSServer::saveInfluxDBSetting);
   _myserver->on("/savebankconfig.json", HTTP_POST, DIYBMSServer::saveBankConfiguration);
+  _myserver->on("/savecontrollerconfig.json", HTTP_POST, DIYBMSServer::saveControllerConfiguration);
   _myserver->on("/saverules.json", HTTP_POST, DIYBMSServer::saveRuleConfiguration);
   _myserver->on("/saventp.json", HTTP_POST, DIYBMSServer::saveNTP);
   _myserver->on("/savedisplaysetting.json", HTTP_POST, DIYBMSServer::saveDisplaySetting);

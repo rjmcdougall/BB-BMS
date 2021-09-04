@@ -51,6 +51,7 @@ static const char *TAG = "diybms";
 #include <SerialEncoder.h>
 #include <cppQueue.h>
 #include <XPT2046_Touchscreen.h>
+#include <TelnetStream.h>
 
 #include "defines.h"
 #include "HAL_ESP32.h"
@@ -104,6 +105,15 @@ bool previousRelayPulse[RELAY_TOTAL];
 volatile enumInputState InputState[INPUTS_TOTAL];
 
 AsyncWebServer server(80);
+
+
+int LOG_TO_TELNET(const char *fmt, va_list args)
+{
+  char buffer[256];
+  int res = vsprintf(buffer, fmt, args);
+  TelnetStream.println("log");
+  TelnetStream.println(buffer);
+}
 
 void LED(uint8_t bits)
 {
@@ -630,18 +640,41 @@ void i2c_task(void *param)
       if (m.command == 0x80)
       {
         pi.soc = bqz.state_of_charge();
-
+        pi.soh = bqz.state_of_health();
         pi.voltage = bqz.voltage() / 1000.0;
-        ESP_LOGD(TAG, "bqz voltate = %f", pi.voltage);
+        ESP_LOGD(TAG, "bqz soc = %f", pi.soc);
+        ESP_LOGD(TAG, "bqz soh = %f", pi.soc);
+        ESP_LOGD(TAG, "bqz voltage = %f", pi.voltage);
+        pi.remainingCapacityAh = bqz.remaining_capacity() * 10.0 / 1000.0;
+        bqz.flagsa_cache = bqz.flags();
+        pi.averageCurrent = bqz.average_current() * 10.0;
+        pi.current = bqz.current() * 10.0;
+        pi.fullChargeCapacityAh = bqz.full_charge_capacity() * 10.0 / 1000.0;
+        pi.temperature_ic1 = bqz.internal_temperature();
+        pi.temperature1 = bqz.temperature();
 
-        pi.remainingCapacityAh = bqz.remaining_capacity() / 1000.0;
-        ESP_LOGD(TAG, "bqz  capacity = %f", pi.remainingCapacityAh);
-        
         CellModuleInfo *cellptr;
         // BQ
         uint16_t mode = bq.getVcellMode();
         ESP_LOGD(TAG, "bq mode = %x", mode);
 
+        // Min/Max temps
+        bq.getDASTATUS5();
+        pi.maxCellTemperature = bq.MaxCellTemp();
+        pi.minCellTemperature = bq.MinCellTemp();
+        pi.minCellVolt = bq.MinCellVolt();
+        pi.maxCellVolt = bq.MaxCellVolt();
+        ESP_LOGD(TAG, "min cell temp %f", pi.minCellTemperature);
+        ESP_LOGD(TAG, "max cell temp %f", pi.maxCellTemperature);
+        ESP_LOGD(TAG, "min cell volt %f", pi.minCellVolt);
+        ESP_LOGD(TAG, "max cell volt %f", pi.maxCellVolt);
+        //TelnetStream.print("voltage = ");
+        //TelnetStream.println(bqz.voltage() / 1000.0);
+        //TelnetStream.print("current = ");
+        //TelnetStream.println(bqz.current());
+        //TelnetStream.print("remaining_capacity = ");
+        //TelnetStream.println(bqz.remaining_capacity());
+        
         // Additional 3 to read top of stack voltages
         unsigned int cells[19];
         bq.getAllCellVoltages(&cells[0]);
@@ -657,6 +690,11 @@ void i2c_task(void *param)
             if (cellptr->voltagemV > 0)
             { 
              cellptr->valid = true;
+            }
+            if (i == 0) {
+              cellptr->internalTemp = pi.minCellTemperature;
+            } else {
+              cellptr->internalTemp = pi.maxCellTemperature;
             }
             if (cellptr->voltagemV < cellptr->voltagemVMin)
             { 
@@ -1035,7 +1073,7 @@ void ProcessRules()
 
       cellid++;
     }
-    rules.ProcessBank(bank);
+    rules.ProcessBank(bank, &pi);
   }
 
   if (mysettings.loggingEnabled && !_sd_card_installed && !_avrsettings.programmingModeEnabled)
@@ -1483,15 +1521,17 @@ void SetupOTA()
 
 void mountSDCard()
 {
+  return;
   /*
 SD CARD TEST
 */
   ESP_LOGI(TAG, "Mounting SD card");
+  return;
 
   hal.GetVSPIMutex();
   // Initialize SD card
   //SD.begin(SDCARD_CHIPSELECT, hal.vspi);
-
+/*
   if (SD.begin(SDCARD_CHIPSELECT, hal.vspi))
   {
     uint8_t cardType = SD.cardType();
@@ -1510,6 +1550,7 @@ SD CARD TEST
     ESP_LOGE(TAG, "Card Mount Failed");
   }
   hal.ReleaseVSPIMutex();
+  */
 }
 
 void sdcardaction_callback(uint8_t action)
@@ -1557,6 +1598,13 @@ void onWifiConnect(WiFiEvent_t event, WiFiEventInfo_t info)
   connectToMqtt();
 
   SetupOTA();
+
+  TelnetStream.begin();
+  //vprintf_like_t ret = 
+  //esp_log_set_vprintf(&LOG_TO_TELNET);
+  //TelnetStream.println("start logging = ");
+  //TelnetStream.println(ret);
+
 
   // Set up mDNS responder:
   // - first argument is the domain name, in this example
@@ -1769,7 +1817,7 @@ void LoadConfiguration()
   //Zero all the bytes
   memset(&mysettings, 0, sizeof(mysettings));
 
-  mysettings.controller_id = 0x99;
+  mysettings.controller_id = 10;
 
   //Default to a single module
   mysettings.totalNumberOfBanks = 1;

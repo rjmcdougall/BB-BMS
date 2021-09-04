@@ -62,6 +62,12 @@ public:
 
     uint8_t zeroVoltageModuleCount;
 
+    // TODO: these should all be per-pack
+    uint8_t soc;
+    uint8_t soh;
+    int32_t current;
+    uint32_t fullChargeCapacityMah;
+    uint32_t remainingCapacityMah;
     uint32_t highestPackVoltage;
     uint32_t lowestPackVoltage;
     uint16_t highestCellVoltage;
@@ -81,7 +87,7 @@ public:
 
     void ClearValues();
     void ProcessCell(uint8_t bank, CellModuleInfo *c);
-    void ProcessBank(uint8_t bank);
+    void ProcessBank(uint8_t bank, PackInfo *p);
     void SetWarning(InternalWarningCode warncode);
 
     void ClearWarnings()

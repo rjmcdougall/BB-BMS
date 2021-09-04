@@ -2,6 +2,13 @@
 #include "driver/can.h"
 //#include "TaskCPP.h"
 
+#define HW_NAME "bb_bms"
+
+// Firmware version
+#define FW_VERSION_MAJOR			5
+#define FW_VERSION_MINOR			02
+#define FW_TEST_VERSION_NUMBER		2
+
 // Settings
 #define PACKET_MAX_PL_LEN 512
 #define RX_FRAMES_SIZE 100
@@ -150,7 +157,8 @@ typedef enum
 	CAN_PACKET_BMS_BAL,
 	CAN_PACKET_BMS_TEMPS,
 	CAN_PACKET_BMS_HUM,
-	CAN_PACKET_BMS_SOC_SOH_TEMP_STAT
+	CAN_PACKET_BMS_SOC_SOH_TEMP_STAT,
+	
 } CAN_PACKET_ID;
 
 // Communication commands
@@ -294,6 +302,10 @@ private:
 	void decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced);
 	bool can_ping(uint8_t controller_id, HW_TYPE *hw_type);
 	void sleep_reset();
+	void can_send_buffer(uint8_t controller_id, uint8_t *data, unsigned int len, uint8_t send);
+	void commands_process_packet(unsigned char *data, unsigned int len);
+
+
 
 	// Private variables
 	static TaskHandle_t can_read_task_handle;
@@ -314,7 +326,7 @@ private:
 	int rx_frame_write = 0;
 	volatile HW_TYPE ping_hw_last = HW_TYPE_VESC;
 	uint8_t rx_buffer[RX_BUFFER_SIZE];
-	unsigned int rx_buffer_last_id;
+	static unsigned int rx_buffer_last_id;
 	static diybms_eeprom_settings *settings;
 	static CellModuleInfo *cmi;
 	static PackInfo *pi;

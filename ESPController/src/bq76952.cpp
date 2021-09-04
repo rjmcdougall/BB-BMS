@@ -54,6 +54,54 @@ bool BQ_DEBUG = false;
 #define CMD_DIR_CC2_CUR           0x3A
 #define CMD_DIR_FET_STAT          0x7F
 
+/*
+0-1 VREG18 16-bit ADC counts
+2–3 VSS 16-bit ADC counts
+4–5 Max Cell Voltage mV
+6–7 Min Cell Voltage mV
+8–9 Battery Voltage Sum cV
+10–11 Avg Cell Temperature 0.1 K
+12–13 FET Temperature 0.1 K
+14–15 Max Cell Temperature 0.1 K
+16–17 Min Cell Temperature 0.1 K
+18–19 Avg Cell Temperature 0.1 K
+20–21 CC3 Current userA
+22–23 CC1 Current userA
+24–27 Raw CC2 Counts 32-bit ADC counts
+28–31 Raw CC3 Counts 32-bit ADC counts
+*/
+
+
+// 0x0075 DASTATUS5() Subcommand
+#define CMD_DASTATUS5 0x75
+#define DASTATUS_VREG18 0
+#define DASTATUS_VSS 2
+#define DASTATUS_MAXCELL 4
+#define DASTATUS_MINCELL 6
+#define DASTATUS_BATSUM 8
+#define DASTATUS_TEMPCELLAVG 10
+#define DASTATUS_TEMPFET 12
+#define DASTATUS_TEMPCELLMAX 14
+#define DASTATUS_TEMPCELLMIN 16
+#define DASTATUS_TEMCELLLAVG 18
+#define DASTATUS_CURRENTCC3 20
+#define DASTATUS_CURRENTCC1 22
+#define DASTATUS_RAWCC2_COUNTS 24
+#define DASTATUS_RAWCC3_COUNTS 28
+
+
+/* 0x68 Int Temperature Internal die temperature
+0x6A CFETOFF Temperature CFETOFF pin thermistor
+0x6C DFETOFF Temperature DFETOFF pin thermistor
+0x6E ALERT Temperature ALERT pin thermistor
+0x70 TS1 Temperature TS1 pin thermistor
+0x72 TS2 Temperature TS2 pin thermistor
+0x74 TS3 Temperature TS3 pin thermistor
+0x76 HDQ Temperature HDQ pin thermistor
+0x78 DCHG Temperature DCHG pin thermistor
+0x7A DDSG Temperature DDSG pin thermistor
+*/
+
 // Alert Bits in BQ76952 registers
 #define BIT_SA_SC_DCHG            7
 #define BIT_SA_OC2_DCHG           6
@@ -103,6 +151,7 @@ unsigned int bq76952::directCommand(uint8_t command)
     ret = BQhal->readByte(I2C_NUM_0, BQaddr, command, &value);
     //ret = value[0] | (value[1] << 8);
     //ESP_LOGD(TAG,"directCommand Reply %i", ret);
+    vTaskDelay(pdMS_TO_TICKS(10));
     return value;
 }
 
@@ -129,11 +178,12 @@ bool bq76952::read16(uint8_t reg, unsigned int *value)
 
 void bq76952::subCommand(uint16_t value)
 {
-    ESP_LOGD(TAG,"BQsubCommand Send %i", value);
+    //ESP_LOGD(TAG,"BQsubCommand Send %i", value);
     uint8_t cmd[2];
     cmd[0] = LOW_BYTE(value);
     cmd[1] = HIGH_BYTE(value);
     ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_SUBCMD_LOW, cmd, 2));
+    vTaskDelay(pdMS_TO_TICKS(10));
 }
 
 uint16_t bq76952::subCommandResponseInt(void)
@@ -141,10 +191,37 @@ uint16_t bq76952::subCommandResponseInt(void)
     uint8_t value[2];
     int16_t ret;
 
-    ESP_LOGD(TAG,"BQsubCommandResponseInt Send");
+    //ESP_LOGD(TAG,"BQsubCommandResponseInt Send");
     ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->readMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_RESP_START, &value[0], 2));
     ret = value[0] | value[1] << 8;
-    ESP_LOGD(TAG,"BQsubCommandResponseInt Reply %i", ret);
+    //ESP_LOGD(TAG,"BQsubCommandResponseInt Reply %i", ret);
+    vTaskDelay(pdMS_TO_TICKS(10));
+    return ret;
+}
+
+bool bq76952::subCommandResponseBlock(uint8_t *data, uint16_t len)
+{
+    bool ret;
+    uint8_t ret_len;
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+    //ESP_LOGD(TAG,"BQsubCommandResponseBlock Check len");
+    ret = BQhal->readByte(I2C_NUM_0, BQaddr, CMD_DIR_RESP_LEN, &ret_len);
+    //ESP_LOGD(TAG,"BQsubCommandResponseBlock Check len = %d, ret = %d", ret_len, ret);
+    if (ret_len > 40) {
+      ret_len = 40;
+    }
+
+    //ESP_LOGD(TAG,"BQsubCommandResponseBlock Send");
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+    for (int i = 0; i < ret_len; i++) {
+      ret = BQhal->readByte(I2C_NUM_0, BQaddr, CMD_DIR_RESP_START + i, data + i);
+      vTaskDelay(pdMS_TO_TICKS(10));
+      //ESP_LOGD(TAG,"BQsubCommandResponseBlock data %x", data[i]);
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+    //ESP_LOGD(TAG,"BQsubCommandResponseBlock Reply %i", ret);
     return ret;
 }
 
@@ -390,6 +467,43 @@ float bq76952::getInternalTemp(void) {
   float raw = directCommand(CMD_DIR_INT_TEMP)/10.0;
   return (raw - 273.15);
 }
+
+// Get DASTATUS5
+bool bq76952::getDASTATUS5() {
+  unsigned int value;
+  subCommand(CMD_DASTATUS5);
+ /* 
+  for (int i = 0; i < 10; i++) {
+    read16(CMD_DASTATUS5, &value);
+    ESP_LOGD(TAG," CMD_DASTATUS5 status %x", value);
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+  */
+
+  return subCommandResponseBlock(&subcmdCache[0], 32);
+}
+
+float bq76952::MaxCellTemp() {
+   float raw  = (subcmdCache[DASTATUS_TEMPCELLMAX] | (subcmdCache[DASTATUS_TEMPCELLMAX + 1] << 8)) / 10.0;
+  return (raw - 273.15);
+}
+
+float bq76952::MinCellTemp() {
+   float raw  = (subcmdCache[DASTATUS_TEMPCELLMIN] | (subcmdCache[DASTATUS_TEMPCELLMIN + 1] << 8)) / 10.0;
+  return (raw - 273.15);
+}
+
+float bq76952::MaxCellVolt() {
+  float raw  = (subcmdCache[DASTATUS_MAXCELL] | (subcmdCache[DASTATUS_MAXCELL + 1] << 8)) / 1000.0;
+  return (raw);
+}
+
+float bq76952::MinCellVolt() {
+  float raw  = (subcmdCache[DASTATUS_MINCELL] | (subcmdCache[DASTATUS_MINCELL + 1] << 8)) / 1000.0;
+  return (raw);
+}
+
+
 
 // Measure thermistor temperature in °C
 float bq76952::getThermistorTemp(bq76952_thermistor thermistor) {

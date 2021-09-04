@@ -229,20 +229,36 @@ function queryBMS() {
         if (jsondata.bankv) {
             for (var bankNumber = 0; bankNumber < jsondata.bankv.length; bankNumber++) {
                 $("#voltage" + bankNumber + " .v").html((parseFloat(jsondata.bankv[bankNumber]) / 1000.0).toFixed(2) + "V");
+                $("#current" + bankNumber + " .v").html((parseFloat(jsondata.current[bankNumber]) / 1000.0).toFixed(3) + "A");
                 $("#range" + bankNumber + " .v").html(jsondata.voltrange[bankNumber] + "mV");
+                $("#soc" + bankNumber + " .v").html(jsondata.soc[bankNumber] + "%");
+                $("#soh" + bankNumber + " .v").html(jsondata.soh[bankNumber] + "%");
+                $("#remainingCapacityAh" + bankNumber + " .v").html((parseFloat(jsondata.remainingCapacityMah[bankNumber]) / 1000.0).toFixed(1) + "AH");
+                $("#fullChargeCapacityAh" + bankNumber + " .v").html((parseFloat(jsondata.fullChargeCapacityMah[bankNumber]) / 1000.0).toFixed(1) + "AH");
                 $("#voltage" + bankNumber).show();
+                $("#current" + bankNumber).show();
                 $("#range" + bankNumber).show();
+                $("#soc" + bankNumber).show();
+                $("#soh" + bankNumber).show();
+                $("#remainingCapacityAh" + bankNumber).show();
+                $("#fullChargeCapacityAh" + bankNumber).show();
                 //$("#bank" + (bankNumber )).show();
             }
 
             for (var bankNumber = jsondata.bankv.length; bankNumber < MAXIMUM_NUMBER_OF_BANKS; bankNumber++) {
                 //$("#bank" + (bankNumber )).hide();
                 $("#voltage" + bankNumber).hide();
+                $("#current" + bankNumber).hide();
                 $("#range" + bankNumber).hide();
+                $("#soc" + bankNumber).hide();
+                $("#soh" + bankNumber).hide();
+                $("#remainingCapacityAh" + bankNumber).hide();
+                $("#fullChargeCapacityAh" + bankNumber).hide();
             }
         }
 
         //Not currently supported
+        /*
         if (jsondata.current) {
             if (jsondata.current[0] == null) {
                 $("#current").hide();
@@ -251,6 +267,7 @@ function queryBMS() {
                 $("#current").show();
             }
         }
+        */
 
         //Needs increasing when more warnings are added
         if (jsondata.warnings) {
@@ -758,11 +775,21 @@ $(function () {
     }
     for (var n = MAXIMUM_NUMBER_OF_BANKS - 1; n >= 0; n--) {
         $("#totalBanks").prepend('<option>' + (n + 1) + '</option>')
+        $("#info").prepend('<div id="remainingCapacityAh' + n + '" class="stat"><span class="x t">Remaining ' + n + ':</span><span class="x v"></span></div>');
+        $("#info").prepend('<div id="fullChargeCapacityAh' + n + '" class="stat"><span class="x t">FCC' + n + ':</span><span class="x v"></span></div>');
+        $("#info").prepend('<div id="soc' + n + '" class="stat"><span class="x t">Level ' + n + ':</span><span class="x v"></span></div>');
+        $("#info").prepend('<div id="soh' + n + '" class="stat"><span class="x t">Health ' + n + ':</span><span class="x v"></span></div>');
         $("#info").prepend('<div id="range' + n + '" class="stat"><span class="x t">Range ' + n + ':</span><span class="x v"></span></div>');
         $("#info").prepend('<div id="voltage' + n + '" class="stat"><span class="x t">Voltage ' + n + ':</span><span class="x v"></span></div>');
+        $("#info").prepend('<div id="current' + n + '" class="stat"><span class="x t">Current ' + n + ':</span><span class="x v"></span></div>');
 
         $("#voltage" + n).hide();
+        $("#current" + n).hide();
         $("#range" + n).hide();
+        $("#soc" + n).hide();
+        $("#soh" + n).hide();
+        $("#remainingCapacityAh" + n).hide();
+        $("#fullChargeCapacityAh" + n).hide();
     }
 
 

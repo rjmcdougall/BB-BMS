@@ -39,6 +39,7 @@ bool Settings::ReadConfig(const char *tag, char *settings, int size)
     if (checksum == existingChecksum)
     {
       //Return TRUE
+      ESP_LOGD(TAG, "checksum verified");
       return true;
     }
   }
@@ -50,7 +51,7 @@ bool Settings::ReadConfig(const char *tag, char *settings, int size)
 
 void Settings::FactoryDefault(const char *tag)
 {
-  ESP_LOGD(TAG, "FactoryDefault %s", tag);
+  ESP_LOGI(TAG, "FactoryDefault %s", tag);
   Preferences prefs;
   prefs.begin(tag);
   prefs.clear();

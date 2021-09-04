@@ -1,3 +1,4 @@
+#include <TelnetStream.h>
 #include "bms_can.h"
 #include "crc16.h"
 #include "buffer.h"
@@ -10,7 +11,7 @@ bms_can::bms_can(diybms_eeprom_settings *s, CellModuleInfo *c, PackInfo *p)
 	//ESP_LOGD(TAG, "Initializing bms:series modules = %d", settings->totalNumberOfSeriesModules);
 	//ESP_LOGD(TAG, "Initializing bms:series modules = %d", settings->controller_id);
 	settings->totalNumberOfSeriesModules = 12;
-	settings->controller_id = 0x99;
+	settings->controller_id = 10;
 	bms_can::cmi = c;
 	bms_can::pi = p;
 }
@@ -24,8 +25,6 @@ void bms_can::begin(void)
 	ESP_LOGD(TAG, "Initializing bms:series modules = %d", settings->totalNumberOfSeriesModules);
 	ESP_LOGD(TAG, "Initializing bms:series modules = %d", settings->controller_id);
 	initCAN();
-
-
 }
 
 TaskHandle_t bms_can::can_read_task_handle = nullptr;
@@ -45,6 +44,10 @@ bms_soc_soh_temp_stat bms_can::bms_stat_v_cell_min;
 diybms_eeprom_settings *bms_can::settings = nullptr;
 CellModuleInfo *bms_can::cmi = nullptr;
 PackInfo *bms_can::pi = nullptr;
+unsigned int bms_can::rx_buffer_last_id = -1;
+
+static void send_packet_wrapper(unsigned char *data, unsigned int len);
+
 
 void bms_can::can_read_task_static(void *param)
 {
@@ -79,13 +82,20 @@ void bms_can::initCAN()
 		bms_stat_msgs[i].id = -1;
 	}
 
+ 
+
 	//xTaskCreate(bms_can::can_read_task_static, "bms_can", 3000, nullptr, 1, &bms_can::can_task_handle);
 	//Task can_task = new Task("can_task", can_read_task, 1, 16);
 	// Initialize configuration structures using macro initializers
-	can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_5, gpio_num_t::GPIO_NUM_35, CAN_MODE_NORMAL);
-	g_config.mode = CAN_MODE_NORMAL;
-	can_timing_config_t t_config = CAN_TIMING_CONFIG_50KBITS();
+	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_5, gpio_num_t::GPIO_NUM_4, CAN_MODE_LISTEN_ONLY);
+	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_5, gpio_num_t::GPIO_NUM_35, CAN_MODE_NORMAL);
+	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_13, gpio_num_t::GPIO_NUM_35, CAN_MODE_NORMAL);
+	can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_13, gpio_num_t::GPIO_NUM_36, CAN_MODE_NORMAL);
+	//g_config.mode = CAN_MODE_NORMAL;
+	can_timing_config_t t_config = CAN_TIMING_CONFIG_500KBITS();
+	//can_timing_config_t t_config = CAN_TIMING_CONFIG_50KBITS();
 	can_filter_config_t f_config = CAN_FILTER_CONFIG_ACCEPT_ALL();
+	//pinMode(GPIO_NUM_32, INPUT_PULLDOWN);
 
 	//Install CAN driver
 	if (can_driver_install(&g_config, &t_config, &f_config) == ESP_OK)
@@ -178,6 +188,145 @@ void bms_can::can_process_task()
 	}
 }
 
+void commands_send_packet(unsigned char *data, unsigned int len)
+{
+	ESP_LOGI(TAG, "CAN  send packet: \n");
+}
+
+
+
+void bms_can::can_send_buffer(uint8_t controller_id, uint8_t *data, unsigned int len, uint8_t send) {
+	uint8_t send_buffer[8];
+
+	if (len <= 6) {
+		uint32_t ind = 0;
+		send_buffer[ind++] = settings->controller_id;
+		send_buffer[ind++] = send;
+		memcpy(send_buffer + ind, data, len);
+		ind += len;
+		can_transmit_eid(controller_id |
+				((uint32_t)CAN_PACKET_PROCESS_SHORT_BUFFER << 8), send_buffer, ind);
+	} else {
+		unsigned int end_a = 0;
+		for (unsigned int i = 0;i < len;i += 7) {
+			if (i > 255) {
+				break;
+			}
+
+			end_a = i + 7;
+
+			uint8_t send_len = 7;
+			send_buffer[0] = i;
+
+			if ((i + 7) <= len) {
+				memcpy(send_buffer + 1, data + i, send_len);
+			} else {
+				send_len = len - i;
+				memcpy(send_buffer + 1, data + i, send_len);
+			}
+
+			can_transmit_eid(controller_id |
+					((uint32_t)CAN_PACKET_FILL_RX_BUFFER << 8), send_buffer, send_len + 1);
+		}
+
+		for (unsigned int i = end_a;i < len;i += 6) {
+			uint8_t send_len = 6;
+			send_buffer[0] = i >> 8;
+			send_buffer[1] = i & 0xFF;
+
+			if ((i + 6) <= len) {
+				memcpy(send_buffer + 2, data + i, send_len);
+			} else {
+				send_len = len - i;
+				memcpy(send_buffer + 2, data + i, send_len);
+			}
+
+			can_transmit_eid(controller_id |
+					((uint32_t)CAN_PACKET_FILL_RX_BUFFER_LONG << 8), send_buffer, send_len + 2);
+		}
+
+		uint32_t ind = 0;
+		send_buffer[ind++] = settings->controller_id;
+		send_buffer[ind++] = send;
+		send_buffer[ind++] = len >> 8;
+		send_buffer[ind++] = len & 0xFF;
+		unsigned short crc = CRC16::CalculateArray(data, len);
+		send_buffer[ind++] = (uint8_t)(crc >> 8);
+		send_buffer[ind++] = (uint8_t)(crc & 0xFF);
+
+		can_transmit_eid(controller_id |
+				((uint32_t)CAN_PACKET_PROCESS_RX_BUFFER << 8), send_buffer, ind++);
+	}
+}
+
+
+//void commands_process_packet(unsigned char *data, unsigned int len, void(*reply_func)(unsigned char *data, unsigned int len)
+void bms_can::commands_process_packet(unsigned char *data, unsigned int len)
+{
+	//	if (len < 1 || reply_func == 0) {
+	if (len < 1)
+	{
+		return;
+	}
+
+	//send_func = reply_func;
+
+	int packet_id = data[0];
+	data++;
+	len--;
+	char buffer[128];
+	ESP_LOGI(TAG, "CAN  process packet: %d\n", packet_id);
+
+	sprintf(buffer, "CAN  command %x\n", packet_id);
+	
+	
+	
+	
+	TelnetStream.println(buffer);
+
+	switch (packet_id)
+	{
+	case COMM_FW_VERSION:
+	{
+		ESP_LOGI(TAG, "CAN  process packet: COMM_FW_VERSION\n");
+
+		int32_t ind = 0;
+		uint8_t send_buffer[50];
+		send_buffer[ind++] = COMM_FW_VERSION;
+		send_buffer[ind++] = FW_VERSION_MAJOR;
+		send_buffer[ind++] = FW_VERSION_MINOR;
+
+		strcpy((char *)(send_buffer + ind), HW_NAME);
+		ind += strlen(HW_NAME) + 1;
+
+		uint64_t esp_chip_id[2];
+		esp_chip_id[0] = ESP.getEfuseMac();
+
+		memcpy(send_buffer + ind, &esp_chip_id[0], 12);
+		ind += 12;
+
+		send_buffer[ind++] = 0;
+		send_buffer[ind++] = FW_TEST_VERSION_NUMBER;
+
+		send_buffer[ind++] = HW_TYPE_VESC_BMS;
+
+		send_buffer[ind++] = 1; // No custom config
+
+		//reply_func(send_buffer, ind);
+		can_send_buffer(rx_buffer_last_id, send_buffer, len, 1);
+
+	}
+	break;
+
+	default:
+		break;
+	}
+}
+
+//static void send_packet_wrapper(unsigned char *data, unsigned int len) {
+//	can_send_buffer(rx_buffer_last_id, data, len, 1);
+//}
+
 void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced)
 {
 	int32_t ind = 0;
@@ -189,12 +338,17 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 
 	uint8_t id = eid & 0xFF;
 	int32_t cmd = eid >> 8;
-	//ESP_LOGI(TAG, "CAN  decode cmd %x d0=%x\n", cmd, data8[0]);
+	//ESP_LOGI(TAG, "CAN  (i am %x) decode from id %x cmd %x d0=%x\n", settings->controller_id, id, cmd, data8[0]);
+	char buffer[128];
+	sprintf(buffer, "CAN  %x decode id %x cmd %x\n", settings->controller_id, id, cmd);
+	//TelnetStream.println(buffer);
 
 	if (id == 255 || id == settings->controller_id)
 	//	if (id == 255 || id == 99)
 	{
-		ESP_LOGI(TAG, "CAN  decode: for me\n");
+		ESP_LOGI(TAG, "CAN  decode 255 or me: id %x cmd %d len %d\n", id, cmd, len);
+		//sprintf(buffer, "CAN  decode 255 or me id %x cmd %x\n", id, cmd);
+		//TelnetStream.println(buffer);
 		switch (cmd)
 		{
 		case CAN_PACKET_FILL_RX_BUFFER:
@@ -213,7 +367,10 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 			break;
 
 		case CAN_PACKET_PROCESS_RX_BUFFER:
-			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PROCESS_RX_BUFFER\n");
+			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PROCESS_RX_BUFFER id %x cmd %d, len %d\n", id, cmd, len);
+			sprintf(buffer, "CAN  CAN_PACKET_PROCESS_RX_BUFFER 		id %x cmd %d\n", id, cmd);
+			TelnetStream.println(buffer);
+			TelnetStream.flush();
 			ind = 0;
 			rx_buffer_last_id = data8[ind++];
 			commands_send = data8[ind++];
@@ -224,6 +381,8 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 			{
 				break;
 			}
+
+			break;
 
 			crc_high = data8[ind++];
 			crc_low = data8[ind++];
@@ -248,13 +407,21 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 				switch (commands_send)
 				{
 				case 0:
+					//TelnetStream.println("commands_process_packet");
+					//TelnetStream.flush();
 					//commands_process_packet(rx_buffer, rxbuf_len, send_packet_wrapper);
+					commands_process_packet(rx_buffer, rxbuf_len);
 					break;
 				case 1:
-					//commands_send_packet(rx_buffer, rxbuf_len);
+					//TelnetStream.println("commands_send_packet");
+					//TelnetStream.flush();
+					commands_send_packet(rx_buffer, rxbuf_len);
 					break;
 				case 2:
+					//TelnetStream.println("commands_process_packet");
+					//TelnetStream.flush();
 					//commands_process_packet(rx_buffer, rxbuf_len, 0);
+					commands_process_packet(rx_buffer, rxbuf_len);
 					break;
 				default:
 					break;
@@ -263,10 +430,17 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 			break;
 
 		case CAN_PACKET_PROCESS_SHORT_BUFFER:
-			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PROCESS_SHORT_BUFFER\n");
+
+			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PROCESS_SHORT_BUFFER id %x cmd %x  len %d\n", id, cmd, len);
+
 			ind = 0;
 			rx_buffer_last_id = data8[ind++];
 			commands_send = data8[ind++];
+
+			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PROCESS_SHORT_BUFFER id %x cmd %x  cmd_send %x len %d\n", id, cmd, commands_send, len);
+			//sprintf(buffer, "CAN  CAN_PACKET_PROCESS_SHORT_BUFFER 		id %x cmd %x cmd_send %x\n", id, cmd, commands_send);
+			//TelnetStream.println(buffer);
+			//TelnetStream.flush();
 
 			if (is_replaced)
 			{
@@ -283,13 +457,21 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 			switch (commands_send)
 			{
 			case 0:
+				//TelnetStream.println("commands_process_packet");
+				//TelnetStream.flush();
 				//commands_process_packet(data8 + ind, len - ind, send_packet_wrapper);
+				commands_process_packet(data8 + ind, len - ind);
 				break;
 			case 1:
-				//commands_send_packet(data8 + ind, len - ind);
+				//TelnetStream.println("commands_send_packet");
+				//TelnetStream.flush();
+				commands_send_packet(data8 + ind, len - ind);
 				break;
 			case 2:
+				//TelnetStream.println("commands_process_packet");
+				//TelnetStream.flush();
 				//commands_process_packet(data8 + ind, len - ind, 0);
+				commands_process_packet(data8 + ind, len - ind);
 				break;
 			default:
 				break;
@@ -298,6 +480,8 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 
 		case CAN_PACKET_PING:
 			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PING\n");
+			//TelnetStream.println("ping");
+			//TelnetStream.flush();
 			{
 				uint8_t buffer[2];
 				buffer[0] = settings->controller_id;
@@ -346,14 +530,14 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		break;
 
 	case CAN_PACKET_STATUS:
-		ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS\n");
+		//ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS\n");
 		sleep_reset();
 
 		for (int i = 0; i < CAN_STATUS_MSGS_TO_STORE; i++)
 		{
-			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS %d\n", i);
+			//ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS %d\n", i);
 			can_status_msg *stat_tmp = &stat_msgs[i];
-			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS %d id = %d\n", i, stat_tmp->id);
+			//ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS %d id = %d\n", i, stat_tmp->id);
 			if (stat_tmp->id == id || stat_tmp->id == -1)
 			{
 				ind = 0;
@@ -362,13 +546,26 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 				stat_tmp->rpm = (float)buffer_get_int32(data8, &ind);
 				stat_tmp->current = (float)buffer_get_int16(data8, &ind) / 10.0;
 				stat_tmp->duty = (float)buffer_get_int16(data8, &ind) / 1000.0;
+#define BAJA_HEADLIGHT_PIN GPIO_NUM_13
+				if (stat_tmp->rpm > 0)
+				{
+					//digitalWrite(BAJA_HEADLIGHT_PIN, LOW);
+					//TelnetStream.println("h/l on");
+					//TelnetStream.flush();
+				}
+				else
+				{
+					//TelnetStream.println("h/l off");
+					//TelnetStream.flush();
+					//digitalWrite(BAJA_HEADLIGHT_PIN, HIGH);
+				}
 				break;
 			}
 		}
 		break;
 
 	case CAN_PACKET_STATUS_2:
-		ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS2\n");
+		//ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS2\n");
 		for (int i = 0; i < CAN_STATUS_MSGS_TO_STORE; i++)
 		{
 			can_status_msg_2 *stat_tmp_2 = &stat_msgs_2[i];
@@ -385,7 +582,7 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		break;
 
 	case CAN_PACKET_STATUS_3:
-		ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS3\n");
+		//ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS3\n");
 		for (int i = 0; i < CAN_STATUS_MSGS_TO_STORE; i++)
 		{
 			can_status_msg_3 *stat_tmp_3 = &stat_msgs_3[i];
@@ -402,7 +599,7 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		break;
 
 	case CAN_PACKET_STATUS_4:
-		ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS4\n");
+		//ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS4\n");
 		for (int i = 0; i < CAN_STATUS_MSGS_TO_STORE; i++)
 		{
 			can_status_msg_4 *stat_tmp_4 = &stat_msgs_4[i];
@@ -421,7 +618,7 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		break;
 
 	case CAN_PACKET_STATUS_5:
-		ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS5\n");
+		//ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_STATUS5\n");
 		for (int i = 0; i < CAN_STATUS_MSGS_TO_STORE; i++)
 		{
 			can_status_msg_5 *stat_tmp_5 = &stat_msgs_5[i];
@@ -439,7 +636,7 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		break;
 
 	case CAN_PACKET_BMS_SOC_SOH_TEMP_STAT:
-		ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_BMS_SOC_SOH_TEMP_STAT\n");
+		//	ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_BMS_SOC_SOH_TEMP_STAT\n");
 		{
 			int32_t ind = 0;
 			bms_soc_soh_temp_stat msg;
@@ -493,7 +690,7 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		break;
 
 	default:
-		ESP_LOGI(TAG, "CAN  decode: default\n");
+		//ESP_LOGI(TAG, "CAN  decode: default\n");
 		break;
 	}
 }
@@ -687,8 +884,16 @@ void bms_can::can_status_task()
 			((bms_if_is_charge_allowed() ? 1 : 0) << 2);
 		can_transmit_eid(settings->controller_id | ((uint32_t)CAN_PACKET_BMS_SOC_SOH_TEMP_STAT << 8), buffer, send_index);
 
+		// DieBie Emulation
+		/*
+		send_index = 0;
+		buffer_append_float32_auto(buffer, bms_if_get_v_tot(), &send_index);
+		buffer_append_float32_auto(buffer, bms_if_get_v_charge(), &send_index);
+		can_transmit_eid(settings->controller_id | ((uint32_t)CAN_PACKET_BMS_V_TOT << 8), buffer, send_index);
+		*/
+	
 
-		// TODO: allow config 
+		// TODO: allow config
 		int32_t sleep_time = 1000 / 1;
 		if (sleep_time == 0)
 		{
@@ -700,86 +905,105 @@ void bms_can::can_status_task()
 	}
 }
 
-
 float bms_can::bms_if_get_v_tot()
 {
 	return pi->voltage;
 }
 
-float bms_can::bms_if_get_v_charge() {
+float bms_can::bms_if_get_v_charge()
+{
 	return 43.2;
 }
 
-float bms_can::bms_if_get_i_in() {
-	return 3.141;
+float bms_can::bms_if_get_i_in()
+{
+	return pi->averageCurrent;
 }
 
-float bms_can::bms_if_get_i_in_ic() {
+float bms_can::bms_if_get_i_in_ic()
+{
 	return 0;
 }
 
-float bms_can::bms_if_get_ah_cnt() {
+float bms_can::bms_if_get_ah_cnt()
+{
 	return 31.14;
 }
 
-float bms_can::bms_if_get_wh_cnt() {
+float bms_can::bms_if_get_wh_cnt()
+{
 	return 314.1;
 }
 
-float bms_can::bms_if_get_v_cell(int cell) {
+float bms_can::bms_if_get_v_cell(int cell)
+{
 	return cmi[cell].voltagemV / 1000.0;
 }
 
-float bms_can::bms_if_get_soc() {
-	return pi->soc;
+// Return range for soc/soh is 0.0 -> 1.0
+float bms_can::bms_if_get_soc()
+{
+	return pi->soc / 100.0;
 }
 
-float bms_can::bms_if_get_soh() {
-	return .98;
+float bms_can::bms_if_get_soh()
+{
+	return pi->soh / 100.0;
 }
 
-bool bms_can::bms_if_is_charging() {
+bool bms_can::bms_if_is_charging()
+{
 	return false;
 }
 
-bool bms_can::bms_if_is_charge_allowed() {
+bool bms_can::bms_if_is_charge_allowed()
+{
 	return true;
 }
 
-bool bms_can::bms_if_is_balancing() {
+bool bms_can::bms_if_is_balancing()
+{
 	return true;
 }
 
-bool bms_can::bms_if_is_balancing_cell(int cell) {
+bool bms_can::bms_if_is_balancing_cell(int cell)
+{
 	return true;
 }
 
-float bms_can::bms_if_get_v_cell_min() {
+float bms_can::bms_if_get_v_cell_min()
+{
 	return 1.0;
 }
 
-float bms_can::bms_if_get_v_cell_max() {
+float bms_can::bms_if_get_v_cell_max()
+{
 	return 3.141;
 }
 
-float bms_can::bms_if_get_humidity_sensor_temp() {
+float bms_can::bms_if_get_humidity_sensor_temp()
+{
 	return 31.4;
 }
 
-float bms_can::bms_if_get_humitidy() {
+float bms_can::bms_if_get_humitidy()
+{
 	return 31.4;
 }
 
-float bms_can::bms_if_get_temp_ic() {
-	return 31.4;
+float bms_can::bms_if_get_temp_ic()
+{
+	return pi->temperature_ic1;
 }
 
-int bms_can::HW_TEMP_CELLS_MAX() {
+int bms_can::HW_TEMP_CELLS_MAX()
+{
 	2;
 }
 
-float bms_can::bms_if_get_temp(int sensor) {
-	return 31.4;	
+float bms_can::bms_if_get_temp(int sensor)
+{
+	return pi->temperature1;
 }
 
 //uint8_t totalNumberOfBanks;

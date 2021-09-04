@@ -363,3 +363,39 @@ uint16_t bq34z100::q_max_time()
 {
     return read_register(0x74, 2);
 }
+
+bool bq34z100::is_soc_full() {
+    return BQ34Z100_FLAG_SOCF(flagsa_cache);
+}
+
+bool bq34z100::is_discharge() {
+    return BQ34Z100_FLAG_DSC(flagsa_cache);
+}
+
+bool bq34z100::is_soc_1() {
+    return BQ34Z100_FLAG_SOC1(flagsa_cache);
+}
+
+bool bq34z100::is_config_update() {
+    return BQ34Z100_FLAG_CFGUP(flagsa_cache);
+}
+
+bool bq34z100::is_full_charge() {
+    return BQ34Z100_FLAG_FC(flagsa_cache);
+}
+
+bool bq34z100::is_overtemp_discharge() {
+    return BQ34Z100_FLAG_DSC(flagsa_cache);
+}
+
+bool bq34z100::is_overtemp_charge() {
+    return BQ34Z100_FLAG_OTC(flagsa_cache);
+}
+
+bool bq34z100::is_undertemp() {
+    return BQ34Z100_FLAG_UT(flagsa_cache);
+}
+
+bool bq34z100::is_overtemp() {
+    return BQ34Z100_FLAG_OT(flagsa_cache);
+}

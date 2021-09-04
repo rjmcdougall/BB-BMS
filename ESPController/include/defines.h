@@ -159,14 +159,28 @@ struct PacketStruct
   uint16_t crc;
 } __attribute__((packed));
 
+// TODO: this should be per-bank
 struct PackInfo
 {
   // SOC
   float soc;
-  // Pack Voltage
-  float voltage;
-  // Pack Remaining Capacity
-  float remainingCapacityAh;
+  float soh;
+  float voltage;  // Pack Voltage
+  float remainingCapacityAh;  // Pack Remaining Capacity
+  float fullChargeCapacityAh;
+  float averageCurrent;
+  float temperature_ic1; // BQZ temp
+  float temperature_ic2;
+  float temperature1;
+  float temperature2;
+  float temperature3;
+  float temperature4;
+  float temperature5;
+  float maxCellTemperature;
+  float minCellTemperature;
+  float maxCellVolt;
+  float minCellVolt;
+  float current;
 };
 
 struct CellModuleInfo

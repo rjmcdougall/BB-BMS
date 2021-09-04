@@ -290,6 +290,12 @@ void HAL_ESP32::ConfigurePins(void (*WiFiPasswordResetInterrupt)(void))
     pinMode(GPIO_NUM_36, INPUT_PULLUP);
     //attachInterrupt(GPIO_NUM_36, TFTScreenTouch, FALLING);
 
+    // Baja Pins
+    //pinMode(3, OUTPUT);
+    //digitalWrite(BAJA_HEADLIGHT_PIN, HIGH);
+    //pinMode(BAJA_TAILLIGHT_PIN, OUTPUT);
+    //digitalWrite(BAJA_TAILLIGHT_PIN, HIGH);
+
     //Configure the CHIP SELECT pins as OUTPUT and set HIGH
     pinMode(TOUCH_CHIPSELECT, OUTPUT);
     digitalWrite(TOUCH_CHIPSELECT, HIGH);

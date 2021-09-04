@@ -494,6 +494,7 @@ void DrawTFT_VoltageFourBank()
 
     int16_t x = 0;
     int16_t y = fontHeight_2 + h + 2;
+/*
     if (rules.moduleHasExternalTempSensor)
     {
         x += tft.drawNumber(rules.lowestExternalTemp, x, y);
@@ -502,8 +503,10 @@ void DrawTFT_VoltageFourBank()
     }
     else
     {
-        x += tft.drawString("Not fitted", x, y);
+        x += tft.drawStrin`g("Not fitted", x, y);
     }
+*/
+    x += tft.drawNumber(rules.soc, x, y);
     //blank out gap between numbers
     tft.fillRect(x, y, (w / 2) - 1 - x, fontHeight_2, TFT_BLACK);
 
@@ -541,8 +544,11 @@ void DrawTFT_VoltageOneBank()
     const int16_t xoffset = 32;
     int16_t y = fontHeight_2;
     int16_t x = tft.width() / 2;
-    float value = rules.packvoltage[0] / 1000.0;
-    x += tft.drawFloat(value, 2, x, y);
+    //float value = rules.packvoltage[0] / 1000.0;
+    float value = rules.soc / 1.0;
+    //x += tft.drawFloat(value, 2, x, y);
+    x += tft.drawNumber(value, x, y);
+    x += tft.drawString("pct", x, y);
     //Clear right hand side of display
     tft.fillRect(x, y, tft.width() - x, tft.fontHeight(), TFT_BLACK);
 
@@ -555,6 +561,9 @@ void DrawTFT_VoltageOneBank()
 
     y = h;
     x = xoffset + 0;
+    value = rules.packvoltage[0] / 1000.0;
+    x += tft.drawFloat(value, 2, x, y);
+    /*
     if (rules.moduleHasExternalTempSensor)
     {
         x += tft.drawNumber(rules.lowestExternalTemp, x, y);
@@ -565,6 +574,7 @@ void DrawTFT_VoltageOneBank()
     {
         x += tft.drawString("Not fitted", x, y);
     }
+    */
     //blank out gap between numbers
     tft.fillRect(x, y, (tft.width() / 2) - x, fontHeight_4, TFT_BLACK);
 
