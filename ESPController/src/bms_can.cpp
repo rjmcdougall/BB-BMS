@@ -1,4 +1,4 @@
-#include <TelnetStream.h>
+//#include <TelnetStream.h>
 #include "bms_can.h"
 #include "crc16.h"
 #include "buffer.h"
@@ -48,7 +48,6 @@ unsigned int bms_can::rx_buffer_last_id = -1;
 
 static void send_packet_wrapper(unsigned char *data, unsigned int len);
 
-
 void bms_can::can_read_task_static(void *param)
 {
 	static_cast<bms_can *>(param)->can_read_task();
@@ -82,8 +81,6 @@ void bms_can::initCAN()
 		bms_stat_msgs[i].id = -1;
 	}
 
- 
-
 	//xTaskCreate(bms_can::can_read_task_static, "bms_can", 3000, nullptr, 1, &bms_can::can_task_handle);
 	//Task can_task = new Task("can_task", can_read_task, 1, 16);
 	// Initialize configuration structures using macro initializers
@@ -106,6 +103,20 @@ void bms_can::initCAN()
 	{
 		ESP_LOGI(TAG, "Failed to install CAN driver\n");
 	}
+
+	//Reconfigure alerts to detect Error Passive and Bus-Off error states
+	/*
+	uint32_t alerts_to_enable = CAN_ALERT_ERR_PASS | CAN_ALERT_BUS_OFF;
+	if (can_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK)
+	{
+		printf("Alerts reconfigured\n");
+	}
+	else
+	{
+		printf("Failed to reconfigure alerts");
+	}
+	*/
+
 	//Start CAN driver
 	if (can_start() == ESP_OK)
 	{
@@ -193,23 +204,28 @@ void commands_send_packet(unsigned char *data, unsigned int len)
 	ESP_LOGI(TAG, "CAN  send packet: \n");
 }
 
-
-
-void bms_can::can_send_buffer(uint8_t controller_id, uint8_t *data, unsigned int len, uint8_t send) {
+void bms_can::can_send_buffer(uint8_t controller_id, uint8_t *data, unsigned int len, uint8_t send)
+{
 	uint8_t send_buffer[8];
 
-	if (len <= 6) {
+	if (len <= 6)
+	{
 		uint32_t ind = 0;
 		send_buffer[ind++] = settings->controller_id;
 		send_buffer[ind++] = send;
 		memcpy(send_buffer + ind, data, len);
 		ind += len;
 		can_transmit_eid(controller_id |
-				((uint32_t)CAN_PACKET_PROCESS_SHORT_BUFFER << 8), send_buffer, ind);
-	} else {
+							 ((uint32_t)CAN_PACKET_PROCESS_SHORT_BUFFER << 8),
+						 send_buffer, ind);
+	}
+	else
+	{
 		unsigned int end_a = 0;
-		for (unsigned int i = 0;i < len;i += 7) {
-			if (i > 255) {
+		for (unsigned int i = 0; i < len; i += 7)
+		{
+			if (i > 255)
+			{
 				break;
 			}
 
@@ -218,31 +234,40 @@ void bms_can::can_send_buffer(uint8_t controller_id, uint8_t *data, unsigned int
 			uint8_t send_len = 7;
 			send_buffer[0] = i;
 
-			if ((i + 7) <= len) {
+			if ((i + 7) <= len)
+			{
 				memcpy(send_buffer + 1, data + i, send_len);
-			} else {
+			}
+			else
+			{
 				send_len = len - i;
 				memcpy(send_buffer + 1, data + i, send_len);
 			}
 
 			can_transmit_eid(controller_id |
-					((uint32_t)CAN_PACKET_FILL_RX_BUFFER << 8), send_buffer, send_len + 1);
+								 ((uint32_t)CAN_PACKET_FILL_RX_BUFFER << 8),
+							 send_buffer, send_len + 1);
 		}
 
-		for (unsigned int i = end_a;i < len;i += 6) {
+		for (unsigned int i = end_a; i < len; i += 6)
+		{
 			uint8_t send_len = 6;
 			send_buffer[0] = i >> 8;
 			send_buffer[1] = i & 0xFF;
 
-			if ((i + 6) <= len) {
+			if ((i + 6) <= len)
+			{
 				memcpy(send_buffer + 2, data + i, send_len);
-			} else {
+			}
+			else
+			{
 				send_len = len - i;
 				memcpy(send_buffer + 2, data + i, send_len);
 			}
 
 			can_transmit_eid(controller_id |
-					((uint32_t)CAN_PACKET_FILL_RX_BUFFER_LONG << 8), send_buffer, send_len + 2);
+								 ((uint32_t)CAN_PACKET_FILL_RX_BUFFER_LONG << 8),
+							 send_buffer, send_len + 2);
 		}
 
 		uint32_t ind = 0;
@@ -255,10 +280,10 @@ void bms_can::can_send_buffer(uint8_t controller_id, uint8_t *data, unsigned int
 		send_buffer[ind++] = (uint8_t)(crc & 0xFF);
 
 		can_transmit_eid(controller_id |
-				((uint32_t)CAN_PACKET_PROCESS_RX_BUFFER << 8), send_buffer, ind++);
+							 ((uint32_t)CAN_PACKET_PROCESS_RX_BUFFER << 8),
+						 send_buffer, ind++);
 	}
 }
-
 
 //void commands_process_packet(unsigned char *data, unsigned int len, void(*reply_func)(unsigned char *data, unsigned int len)
 void bms_can::commands_process_packet(unsigned char *data, unsigned int len)
@@ -278,11 +303,8 @@ void bms_can::commands_process_packet(unsigned char *data, unsigned int len)
 	ESP_LOGI(TAG, "CAN  process packet: %d\n", packet_id);
 
 	sprintf(buffer, "CAN  command %x\n", packet_id);
-	
-	
-	
-	
-	TelnetStream.println(buffer);
+
+//	TelnetStream.println(buffer);
 
 	switch (packet_id)
 	{
@@ -314,7 +336,6 @@ void bms_can::commands_process_packet(unsigned char *data, unsigned int len)
 
 		//reply_func(send_buffer, ind);
 		can_send_buffer(rx_buffer_last_id, send_buffer, len, 1);
-
 	}
 	break;
 
@@ -369,8 +390,8 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		case CAN_PACKET_PROCESS_RX_BUFFER:
 			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PROCESS_RX_BUFFER id %x cmd %d, len %d\n", id, cmd, len);
 			sprintf(buffer, "CAN  CAN_PACKET_PROCESS_RX_BUFFER 		id %x cmd %d\n", id, cmd);
-			TelnetStream.println(buffer);
-			TelnetStream.flush();
+//			TelnetStream.println(buffer);
+//			TelnetStream.flush();
 			ind = 0;
 			rx_buffer_last_id = data8[ind++];
 			commands_send = data8[ind++];
@@ -749,13 +770,56 @@ void bms_can::can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len)
 
 	txmsg.data_length_code = len;
 	memcpy(&txmsg.data[0], &data[0], len);
-	ESP_LOGI(TAG, "CAN tx id %x len %d", id, len);
+	//ESP_LOGI(TAG, "CAN tx id %x len %d", id, len);
 	if (can_transmit(&txmsg, pdMS_TO_TICKS(1000)) != ESP_OK)
 	{
-		ESP_LOGI(TAG, "CAN tx failed");
+		//ESP_LOGI(TAG, "CAN tx failed");
+		return;
+
+		uint32_t alerts = 0;
+		can_read_alerts(&alerts, portMAX_DELAY);
+		ESP_LOGI(tag, "---Alert Read: -- : %04x", alerts);
+
+		if (alerts & CAN_ALERT_ABOVE_ERR_WARN)
+		{
+			ESP_LOGI(tag, "Surpassed Error Warning Limit");
+		}
+
+		if (alerts & CAN_ALERT_ERR_PASS)
+		{
+			ESP_LOGI(tag, "Entered Error Passive state");
+		}
+
+		if (alerts & CAN_ALERT_ERR_ACTIVE)
+		{
+			ESP_LOGI(tag, "Entered Can Error Active");
+		}
+
+		if (alerts & CAN_ALERT_BUS_ERROR)
+		{
+			ESP_LOGI(tag, "Entered Alert Bus Error");
+		}
+
+		if (alerts & CAN_ALERT_BUS_OFF)
+		{
+			ESP_LOGE(tag, "Bus Off --> Initiate bus recovery");
+			//can_initiate_recovery(); //Needs 128 occurrences of bus free signal
+			vTaskDelay(pdMS_TO_TICKS(1000));
+		}
+
+		if (alerts & CAN_ALERT_BUS_RECOVERED)
+		{
+			//Bus recovery was successful
+
+			// only for testing. Does not help !!
+			//esp_err_t res = can_reconfigure_alerts(alerts_enabled, NULL);
+			ESP_LOGI(tag, "Bus Recovered");// %d--> restarting Can", res);
+
+			//put can in start state again and re-enable alert monitoring
+			//can_start();
+		}
 	}
 }
-
 /*
     #ifdef CAN_DEBUG
                 for (int i = 0; i < message.data_length_code; i++)
@@ -891,7 +955,6 @@ void bms_can::can_status_task()
 		buffer_append_float32_auto(buffer, bms_if_get_v_charge(), &send_index);
 		can_transmit_eid(settings->controller_id | ((uint32_t)CAN_PACKET_BMS_V_TOT << 8), buffer, send_index);
 		*/
-	
 
 		// TODO: allow config
 		int32_t sleep_time = 1000 / 1;
@@ -922,12 +985,12 @@ float bms_can::bms_if_get_i_in()
 
 float bms_can::bms_if_get_i_in_ic()
 {
-	return 0;
+	return pi->averageCurrent;
 }
 
 float bms_can::bms_if_get_ah_cnt()
 {
-	return 31.14;
+	return pi->remainingCapacityAh;
 }
 
 float bms_can::bms_if_get_wh_cnt()
@@ -968,17 +1031,17 @@ bool bms_can::bms_if_is_balancing()
 
 bool bms_can::bms_if_is_balancing_cell(int cell)
 {
-	return true;
+	return cmi[cell].inBypass;
 }
 
 float bms_can::bms_if_get_v_cell_min()
 {
-	return 1.0;
+	return pi->minCellVolt;
 }
 
 float bms_can::bms_if_get_v_cell_max()
 {
-	return 3.141;
+	return pi->maxCellVolt;
 }
 
 float bms_can::bms_if_get_humidity_sensor_temp()

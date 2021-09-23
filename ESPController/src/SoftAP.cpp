@@ -65,6 +65,7 @@ void DIYBMSSoftAP::handleSave(AsyncWebServerRequest *request)
 
 bool DIYBMSSoftAP::LoadConfigFromEEPROM()
 {
+  ESP_LOGI("LoadConfigFromEEPROM");
   return (Settings::ReadConfig("diybmswifi", (char *)&_config, sizeof(_config)));
 }
 

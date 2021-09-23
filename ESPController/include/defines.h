@@ -222,7 +222,8 @@ struct CellModuleInfo
   //Value of PWM timer for load shedding
   uint16_t PWMValue;
 
-  uint16_t BalanceCurrentCount;
+  uint32_t BalanceCurrentCount;
+  bool isBalancing;
   uint16_t PacketReceivedCount;
 };
 

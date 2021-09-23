@@ -46,8 +46,8 @@ private:
     //static sdcard_info (*_sdcardcallback)();
     static fs::SDFS *_sdcard;
     static void (*_sdcardaction_callback)(uint8_t action);
-    static PacketRequestGenerator *_prg;
-    static PacketReceiveProcessor *_receiveProc;
+//    static PacketRequestGenerator *_prg;
+//    static PacketReceiveProcessor *_receiveProc;
     static diybms_eeprom_settings *_mysettings;
     static Rules *_rules;
     static ControllerState *_controlState;

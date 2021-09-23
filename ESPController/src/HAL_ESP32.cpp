@@ -71,7 +71,8 @@ esp_err_t HAL_ESP32::readMultipleBytes(i2c_port_t i2c_num, uint8_t dev, uint8_t 
         i2c_master_write_byte(cmd, (dev << 1) | I2C_MASTER_READ, true);
         //Read two bytes and expect NACK in reply
         // i2c_master_read(i2c_cmd_handle_tcmd_handle, uint8_t *data, size_t data_len, i2c_ack_type_tack)
-        i2c_master_read(cmd, data, num, i2c_ack_type_t::I2C_MASTER_NACK);
+        i2c_master_read(cmd, data, num - 1, i2c_ack_type_t::I2C_MASTER_ACK);
+        i2c_master_read_byte(cmd, data + num - 1, i2c_ack_type_t::I2C_MASTER_NACK);
         i2c_master_stop(cmd);
         esp_err_t ret = ESP_ERROR_CHECK_WITHOUT_ABORT(i2c_master_cmd_begin(i2c_num, cmd, pdMS_TO_TICKS(100)));
 
@@ -89,7 +90,7 @@ esp_err_t HAL_ESP32::readMultipleBytes(i2c_port_t i2c_num, uint8_t dev, uint8_t 
     }
 }
 
-esp_err_t HAL_ESP32::directCommand(i2c_port_t i2c_num, uint8_t dev, uint8_t command, uint8_t *data, int num)
+esp_err_t HAL_ESP32::directCommand(i2c_port_t i2c_num, uint8_t dev, uint8_t command, uint8_t *data)
 {
     //We use the native i2c commands for ESP32 as the Arduino library
     //seems to have issues with corrupting i2c data if used from multiple threads

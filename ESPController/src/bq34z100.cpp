@@ -224,9 +224,12 @@ int16_t bq34z100::average_current()
     return (int16_t)read_register(0x0a, 2);
 }
 
+// TODO: Change this to float and return temp in C
+// raw / 10 - 273.15
 uint16_t bq34z100::temperature()
 {
-    return read_register(0x0c, 2);
+    uint16_t raw = read_register(0x0c, 2) / 10;
+    return (raw - 273);
 }
 
 uint16_t bq34z100::flags()
@@ -281,7 +284,9 @@ uint16_t bq34z100::serial_number()
 
 uint16_t bq34z100::internal_temperature()
 {
-    return read_register(0x2a, 2);
+    //return read_register(0x2a, 2);
+    uint16_t raw = read_register(0x2a, 2) / 10;
+    return (raw - 273);
 }
 
 uint16_t bq34z100::cycle_count()

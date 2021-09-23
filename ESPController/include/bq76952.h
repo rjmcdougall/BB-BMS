@@ -95,6 +95,8 @@ public:
 	float getThermistorTemp(bq76952_thermistor);
 	bq76952_protection_t getProtectionStatus(void);
 	bq76952_temperature_t getTemperatureStatus(void);
+	void getCellBalanceStatus(bool *cellArray);
+	void getCellBalanceTimes(uint32_t *cellArray);
 	void setFET(bq76952_fet, bq76952_fet_state);
 	bool isDischarging(void);
 	bool isCharging(void);

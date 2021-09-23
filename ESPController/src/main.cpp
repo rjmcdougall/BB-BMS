@@ -12,6 +12,10 @@
   This code runs on ESP32 DEVKIT-C and compiles with VS CODE and PLATFORM IO environment
 */
 
+#include "sdkconfig.h"
+
+#define CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN 8192aa
+
 #if defined(ESP8266)
 #error ESP8266 is not supported by this code
 #endif
@@ -27,8 +31,6 @@ static const char *TAG = "diybms";
 //#define PACKET_LOGGING_SEND
 //#define RULES_LOGGING
 //#define MQTT_LOGGING
-
-
 
 #include "FS.h"
 #include <LITTLEFS.h>
@@ -46,12 +48,12 @@ static const char *TAG = "diybms";
 //#include "driver/twai.h"
 
 #include <ESPAsyncWebServer.h>
-#include <AsyncMqttClient.h>
+//#include <AsyncMqttClient.h>
 #include <ArduinoOTA.h>
-#include <SerialEncoder.h>
+//#include <SerialEncoder.h>
 #include <cppQueue.h>
 #include <XPT2046_Touchscreen.h>
-#include <TelnetStream.h>
+//#include <TelnetStream.h>
 
 #include "defines.h"
 #include "HAL_ESP32.h"
@@ -63,14 +65,12 @@ static const char *TAG = "diybms";
 
 #include "Rules.h"
 
-#include "avrisp_programmer.h"
+//#include "avrisp_programmer.h"
 
 #include "tft.h"
 
-
 #define BQ_ADDR 0x8
 #define BQZ_ADDR 0x55
-
 
 HAL_ESP32 hal;
 
@@ -106,7 +106,21 @@ volatile enumInputState InputState[INPUTS_TOTAL];
 
 AsyncWebServer server(80);
 
+// Smooth result to ensure no sudden jumps (used for soc motor control etc)
+// Ensure values are initialized to -1
+float smoothResult(float newValue, float oldValue, float percent)
+{
+  if (oldValue < 0)
+  {
+    return newValue;
+  }
+  else
+  {
+    return (oldValue + (newValue - oldValue) * percent / 100);
+  }
+}
 
+/*
 int LOG_TO_TELNET(const char *fmt, va_list args)
 {
   char buffer[256];
@@ -114,6 +128,7 @@ int LOG_TO_TELNET(const char *fmt, va_list args)
   TelnetStream.println("log");
   TelnetStream.println(buffer);
 }
+*/
 
 void LED(uint8_t bits)
 {
@@ -154,28 +169,28 @@ avrprogramsettings _avrsettings;
 #include "settings.h"
 #include "SoftAP.h"
 #include "DIYBMSServer.h"
-#include "PacketRequestGenerator.h"
-#include "PacketReceiveProcessor.h"
+//#include "PacketRequestGenerator.h"
+//#include "PacketReceiveProcessor.h"
 
 // Instantiate queue to hold packets ready for transmission
-cppQueue requestQueue(sizeof(PacketStruct), 24, FIFO);
+//cppQueue requestQueue(sizeof(PacketStruct), 24, FIFO);
 
-cppQueue replyQueue(sizeof(PacketStruct), 8, FIFO);
+//cppQueue replyQueue(sizeof(PacketStruct), 8, FIFO);
 
-PacketRequestGenerator prg = PacketRequestGenerator(&requestQueue);
+//PacketRequestGenerator prg = PacketRequestGenerator(&requestQueue);
 
-PacketReceiveProcessor receiveProc = PacketReceiveProcessor();
+//PacketReceiveProcessor receiveProc = PacketReceiveProcessor();
 
 // Memory to hold in and out serial buffer
-uint8_t SerialPacketReceiveBuffer[2 * sizeof(PacketStruct)];
+//uint8_t SerialPacketReceiveBuffer[2 * sizeof(PacketStruct)];
 
-SerialEncoder myPacketSerial;
+//SerialEncoder myPacketSerial;
 
 uint16_t sequence = 0;
 
 ControllerState _controller_state = ControllerState::Unknown;
 
-AsyncMqttClient mqttClient;
+//AsyncMqttClient mqttClient;
 
 void QueueLED(uint8_t bits)
 {
@@ -198,6 +213,7 @@ void QueueReadCells()
 //so move to malloc ?
 //uint8_t program[8192];
 
+/*
 void avrprog_task(void *param)
 {
   for (;;)
@@ -273,7 +289,7 @@ void avrprog_task(void *param)
     s->inProgress = false;
 
   } //end for
-}
+}*/
 
 //Output a status log to the SD Card in CSV format
 void sdcardlog_task(void *param)
@@ -629,29 +645,32 @@ void i2c_task(void *param)
       }
 #endif
       // 	void initBQ(void);
-	    // unsigned int directCommand(byte);
-	    // void subCommand(unsigned int);
-	    // unsigned int subCommandResponseInt(void);
-	    // void enterConfigUpdate(void);
-	    // void exitConfigUpdate(void);
-	    // byte computeChecksum(byte, byte);
-	    // void writeDataMemory(unsigned int , unsigned int, byte);
-	    // byte readDataMemory(unsigned int);
+      // unsigned int directCommand(byte);
+      // void subCommand(unsigned int);
+      // unsigned int subCommandResponseInt(void);
+      // void enterConfigUpdate(void);
+      // void exitConfigUpdate(void);
+      // byte computeChecksum(byte, byte);
+      // void writeDataMemory(unsigned int , unsigned int, byte);
+      // byte readDataMemory(unsigned int);
       if (m.command == 0x80)
       {
-        pi.soc = bqz.state_of_charge();
+        pi.soc = smoothResult(bqz.state_of_charge(), pi.soc, 3.0);
         pi.soh = bqz.state_of_health();
         pi.voltage = bqz.voltage() / 1000.0;
         ESP_LOGD(TAG, "bqz soc = %f", pi.soc);
-        ESP_LOGD(TAG, "bqz soh = %f", pi.soc);
+        ESP_LOGD(TAG, "bqz soh = %f", pi.soh);
         ESP_LOGD(TAG, "bqz voltage = %f", pi.voltage);
         pi.remainingCapacityAh = bqz.remaining_capacity() * 10.0 / 1000.0;
+        ESP_LOGD(TAG, "bqz remainingCapacityAh = %f", pi.remainingCapacityAh);
         bqz.flagsa_cache = bqz.flags();
         pi.averageCurrent = bqz.average_current() * 10.0;
         pi.current = bqz.current() * 10.0;
         pi.fullChargeCapacityAh = bqz.full_charge_capacity() * 10.0 / 1000.0;
         pi.temperature_ic1 = bqz.internal_temperature();
+        pi.temperature_ic2 = bq.getInternalTemp();
         pi.temperature1 = bqz.temperature();
+        ESP_LOGD(TAG, "bq internal temp = %f", pi.temperature_ic2);
 
         CellModuleInfo *cellptr;
         // BQ
@@ -674,34 +693,47 @@ void i2c_task(void *param)
         //TelnetStream.println(bqz.current());
         //TelnetStream.print("remaining_capacity = ");
         //TelnetStream.println(bqz.remaining_capacity());
-        
+
         // Additional 3 to read top of stack voltages
         unsigned int cells[19];
+        bool cellBalanceStatus[16];
+        uint32_t cellBalanceTimes[16];
         bq.getAllCellVoltages(&cells[0]);
+        bq.getCellBalanceStatus(&cellBalanceStatus[0]);
+        bq.getCellBalanceTimes(&cellBalanceTimes[0]);
         int configuredCell = 0;
-        for (int i = 0; i < 16; i++) {
-          if ((mode & (1 << i)) == false) {
+        for (int i = 0; i < 16; i++)
+        {
+          if ((mode & (1 << i)) == false)
+          {
             continue;
           }
-          ESP_LOGD(TAG, "cell %i (bq cell %i) %d", configuredCell, i, cells[i]);
           cellptr = &cmi[configuredCell];
-          if (cells[i] > 0) {
+          ESP_LOGD(TAG, "cell %i (bq cell %i) %d mv, %d balance (%d)", configuredCell, i, cells[i], cellBalanceTimes[i], cellBalanceStatus[i]); // - cellptr->BalanceCurrentCount);
+          if (cells[i] > 0)
+          {
             cellptr->voltagemV = cells[i];
+            // Estimate 25ma cell balance current * seconds of balancing
+            cellptr->BalanceCurrentCount = cellBalanceTimes[i] * 25 / 3600;
+            cellptr->inBypass = cellBalanceStatus[i];
             if (cellptr->voltagemV > 0)
-            { 
-             cellptr->valid = true;
+            {
+              cellptr->valid = true;
             }
-            if (i == 0) {
+            if (i == 0)
+            {
               cellptr->internalTemp = pi.minCellTemperature;
-            } else {
+            }
+            else
+            {
               cellptr->internalTemp = pi.maxCellTemperature;
             }
             if (cellptr->voltagemV < cellptr->voltagemVMin)
-            { 
+            {
               cellptr->voltagemVMin = cellptr->voltagemV;
             }
             if (cellptr->voltagemV > cellptr->voltagemVMax)
-            { 
+            {
               cellptr->voltagemVMax = cellptr->voltagemV;
             }
           }
@@ -852,7 +884,6 @@ const char *ControllerStateString(ControllerState value)
   return "?";
 }
 
-
 void SetControllerState(ControllerState newState)
 {
   if (_controller_state != newState)
@@ -886,7 +917,6 @@ void SetControllerState(ControllerState newState)
   }
 }
 
-
 uint16_t minutesSinceMidnight()
 {
   struct tm timeinfo;
@@ -900,6 +930,7 @@ uint16_t minutesSinceMidnight()
   }
 }
 
+/*
 void replyqueue_task(void *param)
 {
   for (;;)
@@ -983,7 +1014,7 @@ void transmit_task(void *param)
       }
 
       transmitBuffer.crc = CRC16::CalculateArray((uint8_t *)&transmitBuffer, sizeof(PacketStruct) - 2);
-      myPacketSerial.sendBuffer((byte *)&transmitBuffer);
+      //      myPacketSerial.sendBuffer((byte *)&transmitBuffer);
 
       // Output the packet we just transmitted to debug console
       //#if defined(PACKET_LOGGING_SEND)
@@ -992,12 +1023,15 @@ void transmit_task(void *param)
     }
   }
 }
+*/
 
 //Runs the rules and populates rule_outcome array with true/false for each rule
 //Rules based on module parameters/readings like voltage and temperature
 //are only processed once every module has returned at least 1 reading/communication
 void ProcessRules()
 {
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+
   rules.ClearValues();
   rules.ClearWarnings();
   rules.ClearErrors();
@@ -1012,12 +1046,13 @@ void ProcessRules()
     //System is configured with more than maximum modules - abort!
     rules.SetError(InternalErrorCode::TooManyModules);
   }
-
+  /*
   if (receiveProc.totalModulesFound > 0 && receiveProc.totalModulesFound != totalConfiguredModules)
   {
     //Found more or less modules than configured for
     rules.SetError(InternalErrorCode::ModuleCountMismatch);
   }
+  */
 
   //Communications error...
   //if (receiveProc.HasCommsTimedOut())
@@ -1158,7 +1193,7 @@ void pulse_relay_off_task(void *param)
     }
 
     //Fire task to record state of outputs to SD Card
-    xTaskNotify(sdcardlog_outputs_task_handle, 0x00, eNotifyAction::eNoAction);
+    //xTaskNotify(sdcardlog_outputs_task_handle, 0x00, eNotifyAction::eNoAction);
   }
 }
 
@@ -1260,55 +1295,6 @@ void rules_task(void *param)
   }
 }
 
-void enqueue_task(void *param)
-{
-  for (;;)
-  {
-    //Ensure we service the cell modules every 5 or 10 seconds, depending on number of cells being serviced
-    //slower stops the queues from overflowing when a lot of cells are being monitored
-    vTaskDelay(pdMS_TO_TICKS((TotalNumberOfCells() <= maximum_cell_modules_per_packet) ? 5000 : 10000));
-
-    QueueLED(RGBLED::Green);
-    //Fire task to switch off LED in a few ms
-    // RMC xTaskNotify(ledoff_task_handle, 0x00, eNotifyAction::eNoAction);
-
-    uint16_t i = 0;
-    uint16_t max = TotalNumberOfCells();
-
-    uint8_t startmodule = 0;
-
-    while (i < max)
-    {
-      uint16_t endmodule = (startmodule + maximum_cell_modules_per_packet) - 1;
-
-      //Limit to number of modules we have configured
-      if (endmodule > max)
-      {
-        endmodule = max - 1;
-      }
-
-      //Need to watch overflow of the uint8 here...
-      prg.sendCellVoltageRequest(startmodule, endmodule);
-      prg.sendCellTemperatureRequest(startmodule, endmodule);
-
-      //If any module is in bypass then request PWM reading for whole bank
-      for (uint8_t m = startmodule; m <= endmodule; m++)
-      {
-        if (cmi[m].inBypass)
-        {
-          prg.sendReadBalancePowerRequest(startmodule, endmodule);
-          //We only need 1 reading for whole bank
-          break;
-        }
-      }
-
-      //Move to the next bank
-      startmodule = endmodule + 1;
-      i += maximum_cell_modules_per_packet;
-    }
-  }
-}
-
 void connectToWifi()
 {
   wl_status_t status = WiFi.status();
@@ -1353,6 +1339,7 @@ WiFi.status() only returns:
   WiFi.begin(DIYBMSSoftAP::WifiSSID(), DIYBMSSoftAP::WifiPassword());
 }
 
+/*
 void connectToMqtt()
 {
   if (mysettings.mqtt_enabled && WiFi.isConnected())
@@ -1375,106 +1362,229 @@ void connectToMqtt()
     mqttClient.disconnect(true);
   }
 }
+*/
 
-static AsyncClient *aClient = NULL;
 
-void setupInfluxClient()
+// InfluxDB 2 server url, e.g. http://192.168.1.48:8086 (Use: InfluxDB UI -> Load Data -> Client Libraries)
+#define INFLUXDB_URL "https://us-central1-1.gcp.cloud2.influxdata.com"
+// InfluxDB 2 server or cloud API authentication token (Use: InfluxDB UI -> Load Data -> Tokens -> <select token>)
+#define INFLUXDB_TOKEN "T49oTVwIN0yQVku1Z7qJ-eFWZgXe3gu-KMBDxIoodSKr_DLuHZV_yc1WvOSbDvQpbUG8Xwu1puHMcm_t54PRuQ=="
+// InfluxDB 2 organization name or id (Use: InfluxDB UI -> Settings -> Profile -> <name under tile> )
+#define INFLUXDB_ORG "richardmcd@gmail.com"
+// InfluxDB 2 bucket name (Use: InfluxDB UI -> Load Data -> Buckets)
+#define INFLUXDB_BUCKET "bms"
+
+
+#define GRAPHITE_CLIENT "https://graphite-prod-10-prod-us-central-0.grafana.net/graphite/metrics"
+#define GRAPHITE_USER "209110"
+#define GRAPHITE_API_KEY "eyJrIjoiNzM0YWMyNzBhMDNhMmUxMWI2YzE1NWEwMmViODhiNjFkY2MwOTQ2YyIsIm4iOiJidXJuZXJib2FyZCIsImlkIjo1NDQxNjF9"
+
+#ifdef USE_INFLUX_CLIENT
+#include <InfluxDbClient.h>
+
+//InfluxDBClient iClient(ysettings.influxdb_host, mysettings.influxdb_database, mysettings.influxdb_user, mysettings.influxdb_password);
+InfluxDBClient *iClient = NULL;
+
+Point sensor("bms");
+
+#define TZ_INFO "UTC-7"
+
+void influxdb_task(void *param)
 {
 
-  if (aClient) //client already exists
-    return;
+  ESP_LOGI("Starting influxdb_task");
+  ESP_LOGI(TAG, "Setting up InfluxDB: ");
+  if (iClient == NULL)
+  {
+    iClient = new InfluxDBClient(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN);
+    iClient->setInsecure(true);
+  }
+  ESP_LOGI(TAG, "New InfluxDB()");
 
-  aClient = new AsyncClient();
-  if (!aClient) //could not allocate client
-    return;
+  sensor.addTag("device", "baja");
+  sensor.addTag("series_cells", String(mysettings.totalNumberOfSeriesModules));
+  while (WiFi.isConnected() == false) {
+    ESP_LOGI(TAG, "InfluxDB: Waiting for wifi");
+    vTaskDelay(pdMS_TO_TICKS(10000));
+  }
+  vTaskDelay(pdMS_TO_TICKS(10000));
+  // Check server connection
+  if (iClient->validateConnection())
+  {
+    ESP_LOGI(TAG, "Connected to InfluxDB: ", iClient->getServerUrl());
+  }
+  else
+  {
+    ESP_LOGE(TAG, "InfluxDB connection failed: ", iClient->getLastErrorMessage());
+  }
+  for (;;)
+  {
 
-  aClient->onError([](void *arg, AsyncClient *client, err_t error) {
-    ESP_LOGE(TAG, "Influx connect error");
-
-    aClient = NULL;
-    delete client;
-  },
-                   NULL);
-
-  aClient->onConnect([](void *arg, AsyncClient *client) {
-    ESP_LOGI("Influx connected");
-
-    //Send the packet here
-
-    aClient->onError(NULL, NULL);
-
-    client->onDisconnect([](void *arg, AsyncClient *c) {
-      ESP_LOGI("Influx disconnected");
-      aClient = NULL;
-      delete c;
-    },
-                         NULL);
-
-    client->onData([](void *arg, AsyncClient *c, void *data, size_t len) {
-      //Data received
-      ESP_LOGD("Influx data received");
-      //SERIAL_DEBUG.print(F("\r\nData: "));
-      //SERIAL_DEBUG.println(len);
-      //uint8_t* d = (uint8_t*)data;
-      //for (size_t i = 0; i < len; i++) {SERIAL_DEBUG.write(d[i]);}
-    },
-                   NULL);
-
-    //send the request
-
-    //Construct URL for the influxdb
-    //See API at https://docs.influxdata.com/influxdb/v1.7/tools/api/#write-http-endpoint
-
-    String poststring;
-
-    for (uint8_t bank = 0; bank < mysettings.totalNumberOfBanks; bank++)
+    if (mysettings.influxdb_enabled && WiFi.isConnected())
     {
-      //TODO: We should send a request per bank not just a single POST as we are likely to exceed capabilities of ESP
-      for (uint8_t i = 0; i < mysettings.totalNumberOfSeriesModules; i++)
+
+      ESP_LOGI("Send Influxdb data");
+      sensor.clearFields();
+
+      for (uint8_t bank = 0; bank < mysettings.totalNumberOfBanks; bank++)
       {
-        //Data in LINE PROTOCOL format https://docs.influxdata.com/influxdb/v1.7/write_protocols/line_protocol_tutorial/
-        poststring = poststring + "cells," + "cell=" + String(bank) + "_" + String(i) + " v=" + String((float)cmi[i].voltagemV / 1000.0, 3) + ",i=" + String(cmi[i].internalTemp) + "i" + ",e=" + String(cmi[i].externalTemp) + "i" + ",b=" + (cmi[i].inBypass ? String("true") : String("false")) + "\n";
+        //TODO: We should send a request per bank not just a single POST as we are likely to exceed capabilities of ESP
+        for (uint8_t i = 0; i < mysettings.totalNumberOfSeriesModules; i++)
+        {
+          sensor.addField("cell_" + String(i) + "_v", cmi[i].voltagemV / 1000.0, 3);
+          sensor.addField("cell_" + String(i) + "_balance_mah", cmi[i].BalanceCurrentCount);
+          //Data in LINE PROTOCOL format https://docs.influxdata.com/influxdb/v1.7/write_protocols/line_protocol_tutorial/
+          //poststring = poststring + "cells," + "cell=" + String(bank) + "_" + String(i) + " v=" + String((float)cmi[i].voltagemV / 1000.0, 3) + ",i=" + String(cmi[i].internalTemp) + "i" + ",e=" + String(cmi[i].externalTemp) + "i" + ",b=" + (cmi[i].inBypass ? String("true") : String("false")) + "\n";
+        }
+      }
+      if (!iClient->writePoint(sensor))
+      {
+        ESP_LOGI("InfluxDB write failed: ");
+        ESP_LOGI(iClient->getLastErrorMessage());
       }
     }
 
-    //TODO: Need to URLEncode these values
-    String url = "/write?db=" + String(mysettings.influxdb_database) + "&u=" + String(mysettings.influxdb_user) + "&p=" + String(mysettings.influxdb_password);
-    String header = "POST " + url + " HTTP/1.1\r\n" + "Host: " + String(mysettings.influxdb_host) + "\r\n" + "Connection: close\r\n" + "Content-Length: " + poststring.length() + "\r\n" + "Content-Type: text/plain\r\n" + "\r\n";
+    //Delay 30 seconds
+    vTaskDelay(pdMS_TO_TICKS(30000));
+  }
+}
 
-    //SERIAL_DEBUG.println(header.c_str());
-    //SERIAL_DEBUG.println(poststring.c_str());
+#else // USE_INFLUX_CLIENT
+#include <HTTPClient.h>
 
-    client->write(header.c_str());
-    client->write(poststring.c_str());
+HTTPClient httpInflux;
+HTTPClient httpGraphite;
 
-    ESP_LOGD("Influx data sent");
-  },
-                     NULL);
+static char invalidChars[] = "$&+,/:;=?@ <>#%{}|\\^~[]`";
+
+static char hex_digit(char c) {
+    return "0123456789ABCDEF"[c & 0x0F];
+}
+
+String urlEncode(const char *src)
+{
+    int n = 0;
+    char c, *s = (char *)src;
+    while ((c = *s++))
+    {
+        if (strchr(invalidChars, c))
+        {
+            n++;
+        }
+    }
+    String ret;
+    ret.reserve(strlen(src) + 2 * n + 1);
+    s = (char *)src;
+    while ((c = *s++))
+    {
+        if (strchr(invalidChars, c))
+        {
+            ret += '%';
+            ret += hex_digit(c >> 4);
+            ret += hex_digit(c);
+        }
+        else
+            ret += c;
+    }
+    return ret;
 }
 
 void influxdb_task(void *param)
 {
+
+
+  ESP_LOGI("Starting influxdb_task");
+  ESP_LOGI(TAG, "Setting up InfluxDB: ");
+
+  int httpCode = 0;
+
   for (;;)
   {
-    //Delay 30 seconds
-    vTaskDelay(pdMS_TO_TICKS(30000));
 
     if (mysettings.influxdb_enabled && WiFi.isConnected())
     {
+
       ESP_LOGI("Send Influxdb data");
 
-      setupInfluxClient();
+      String influxClient = String(INFLUXDB_URL) + "/api/v2/write?org=" + urlEncode(INFLUXDB_ORG) + "&bucket=" + INFLUXDB_BUCKET + "&precision=s";
+      String body;//= String("temperature value=") + cels + " " + ts + "\n" + "humidity value=" + hum + " " + ts + "\n" + "index value=" + hic + " " + ts + "\n" + "moisture value=" + moist + " " + ts + "\n" + "light value=" + light + " " + ts + "\n" + "height value=" + height + " " + ts;
+      body = body + "pack ";
+      body = body + "voltage=" + String(pi.voltage, 3) + ",";
+      body = body + "current=" + String(pi.current / 1000.0, 3) + ",";
+      body = body + "fullChargeCapacityAh=" + String(pi.fullChargeCapacityAh, 3) + ",";
+      body = body + "remainingCapacityAh=" + String(pi.remainingCapacityAh, 3) + ",";
+      body = body + "soc=" + String(pi.soc, 3) + ",";
+      body = body + "soh=" + String(pi.soh, 3) + ",";
+      body = body + "minCellTemperature=" + String(pi.minCellTemperature, 3) + ",";
+      body = body + "maxCellTemperature=" + String(pi.maxCellTemperature, 3) + ",";
+      body = body + "temperature_ic1=" + String(pi.temperature_ic1, 3) + ",";
+      body = body + "temperature_ic2=" + String(pi.temperature_ic2, 3) + "\n";
 
-      if (!aClient->connect(mysettings.influxdb_host, mysettings.influxdb_httpPort))
       {
-        ESP_LOGE(TAG, "Influxdb connect fail");
-        AsyncClient *client = aClient;
-        aClient = NULL;
-        delete client;
+        //TODO: We should send a request per bank not just a single POST as we are likely to exceed capabilities of ESP
+        for (uint8_t i = 0; i < mysettings.totalNumberOfSeriesModules; i++)
+        {
+          body = body + "bms cell_" + String(i) + "_v=" + String(cmi[i].voltagemV / 1000.0, 3) + ",";
+          body = body + "cell_" + String(i) + "_balance_mah=" + String(cmi[i].BalanceCurrentCount) + "\n";
+          //sensor.addField("cell_" + String(i) + "_v", cmi[i].voltagemV / 1000.0, 3);
+          //sensor.addField("cell_" + String(i) + "_balance_mah", cmi[i].BalanceCurrentCount);
+          //Data in LINE PROTOCOL format https://docs.influxdata.com/influxdb/v1.7/write_protocols/line_protocol_tutorial/
+          //poststring = poststring + "cells," + "cell=" + String(bank) + "_" + String(i) + " v=" + String((float)cmi[i].voltagemV / 1000.0, 3) + ",i=" + String(cmi[i].internalTemp) + "i" + ",e=" + String(cmi[i].externalTemp) + "i" + ",b=" + (cmi[i].inBypass ? String("true") : String("false")) + "\n";
+        }
       }
+      // Submit POST request via HTTP
+      httpInflux.begin(influxClient);
+      httpInflux.addHeader(F("Content-Type"), F("text/plain")); 
+      
+      httpInflux.addHeader("Authorization",  "Token " + String(INFLUXDB_TOKEN));
+      httpCode = httpInflux.POST(body);
+      ESP_LOGI(TAG, "Post: %s", body.c_str());
+      ESP_LOGI(TAG, "Influx [HTTPS] POST...  Code: %d\n", httpCode);
+      httpInflux.end();
+
+#ifdef GRAPHITE
+
+      ESP_LOGI("Send Graphite data");
+
+      //String graphiteClient = String(GRAPHITE_URL) + "/api/v2/write?org=" + urlEncode(GRAPHITE_ORG) + "&bucket=" + INFLUXDB_BUCKET + "&precision=s";
+      //String body;//= String("temperature value=") + cels + " " + ts + "\n" + "humidity value=" + hum + " " + ts + "\n" + "index value=" + hic + " " + ts + "\n" + "moisture value=" + moist + " " + ts + "\n" + "light value=" + light + " " + ts + "\n" + "height value=" + height + " " + ts;
+      {
+        body = String("[");
+        //TODO: We should send a request per bank not just a single POST as we are likely to exceed capabilities of ESP
+        for (uint8_t i = 0; i < mysettings.totalNumberOfSeriesModules; i++)
+        {
+          body = body + "{\"name\":\"bms cell_" + String(i) + "_v\",value:" + String(cmi[i].voltagemV / 1000.0, 3) + ",\"mtype\":\"gauge\"},";
+          body = body + "{\"name\":\"bms cell_" + String(i) + "_balance_mah\",value:" + String(cmi[i].BalanceCurrentCount) + ",\"mtype\":\"gauge\"},";
+          body = body + "cell_" + String(i) + "_balance_mah=" + String(cmi[i].BalanceCurrentCount) + "\n";
+          //sensor.addField("cell_" + String(i) + "_v", cmi[i].voltagemV / 1000.0, 3);
+          //sensor.addField("cell_" + String(i) + "_balance_mah", cmi[i].BalanceCurrentCount);
+          //Data in LINE PROTOCOL format https://docs.influxdata.com/influxdb/v1.7/write_protocols/line_protocol_tutorial/
+          //poststring = poststring + "cells," + "cell=" + String(bank) + "_" + String(i) + " v=" + String((float)cmi[i].voltagemV / 1000.0, 3) + ",i=" + String(cmi[i].internalTemp) + "i" + ",e=" + String(cmi[i].externalTemp) + "i" + ",b=" + (cmi[i].inBypass ? String("true") : String("false")) + "\n";
+        }
+        body = body  + String("]");
+
+      }
+      // Submit POST request via HTTP
+      httpGraphite.begin(GRAPHITE_CLIENT);
+      httpGraphite.addHeader(F("Content-Type"), F("text/plain")); 
+      httpGraphite.setAuthorization(GRAPHITE_USER, GRAPHITE_API_KEY);
+      httpGraphite.addHeader("Content-Type", "application/json");
+
+      httpCode = httpGraphite.POST(body);
+      ESP_LOGI(TAG, "Post: %s", body.c_str());
+      ESP_LOGI(TAG, "Graphite [HTTPS] POST...  Code: %d\n", httpCode);
+      httpGraphite.end();
+#endif
+
     }
+    vTaskDelay(pdMS_TO_TICKS(30000));
+
   }
 }
+
+#endif
+
+
 
 void SetupOTA()
 {
@@ -1484,35 +1594,35 @@ void SetupOTA()
   ArduinoOTA.setPassword("1jiOOx12AQgEco4e");
 
   ArduinoOTA
-      .onStart([]() {
-        String type;
-        if (ArduinoOTA.getCommand() == U_FLASH)
-          type = "sketch";
-        else // U_SPIFFS
-          type = "filesystem";
+      .onStart([]()
+               {
+                 String type;
+                 if (ArduinoOTA.getCommand() == U_FLASH)
+                   type = "sketch";
+                 else // U_SPIFFS
+                   type = "filesystem";
 
-        // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-        ESP_LOGI(TAG, "Start updating %s", type);
-      });
-  ArduinoOTA.onEnd([]() {
-    ESP_LOGD(TAG, "\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    ESP_LOGD(TAG, "Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    ESP_LOGD(TAG, "Error [%u]: ", error);
-    if (error == OTA_AUTH_ERROR)
-      ESP_LOGE(TAG, "Auth Failed");
-    else if (error == OTA_BEGIN_ERROR)
-      ESP_LOGE(TAG, "Begin Failed");
-    else if (error == OTA_CONNECT_ERROR)
-      ESP_LOGE(TAG, "Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR)
-      ESP_LOGE(TAG, "Receive Failed");
-    else if (error == OTA_END_ERROR)
-      ESP_LOGE(TAG, "End Failed");
-  });
+                 // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+                 ESP_LOGI(TAG, "Start updating %s", type);
+               });
+  ArduinoOTA.onEnd([]()
+                   { ESP_LOGD(TAG, "\nEnd"); });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                        { ESP_LOGD(TAG, "Progress: %u%%\r", (progress / (total / 100))); });
+  ArduinoOTA.onError([](ota_error_t error)
+                     {
+                       ESP_LOGD(TAG, "Error [%u]: ", error);
+                       if (error == OTA_AUTH_ERROR)
+                         ESP_LOGE(TAG, "Auth Failed");
+                       else if (error == OTA_BEGIN_ERROR)
+                         ESP_LOGE(TAG, "Begin Failed");
+                       else if (error == OTA_CONNECT_ERROR)
+                         ESP_LOGE(TAG, "Connect Failed");
+                       else if (error == OTA_RECEIVE_ERROR)
+                         ESP_LOGE(TAG, "Receive Failed");
+                       else if (error == OTA_END_ERROR)
+                         ESP_LOGE(TAG, "End Failed");
+                     });
 
   ArduinoOTA.setHostname(WiFi.getHostname());
   ArduinoOTA.setMdnsEnabled(true);
@@ -1531,7 +1641,7 @@ SD CARD TEST
   hal.GetVSPIMutex();
   // Initialize SD card
   //SD.begin(SDCARD_CHIPSELECT, hal.vspi);
-/*
+  /*
   if (SD.begin(SDCARD_CHIPSELECT, hal.vspi))
   {
     uint8_t cardType = SD.cardType();
@@ -1591,26 +1701,26 @@ void onWifiConnect(WiFiEvent_t event, WiFiEventInfo_t info)
   */
   if (!server_running)
   {
-    DIYBMSServer::StartServer(&server, &mysettings, &SD, &prg, &receiveProc, &_controller_state, &rules, &sdcardaction_callback, &hal);
+    DIYBMSServer::StartServer(&server, &mysettings, &SD, nullptr, nullptr, &_controller_state, &rules, &sdcardaction_callback, &hal);
     server_running = true;
   }
 
-  connectToMqtt();
+  //connectToMqtt();
 
-  SetupOTA();
+  //SetupOTA();
 
-  TelnetStream.begin();
-  //vprintf_like_t ret = 
+  //TelnetStream.begin();
+  //vprintf_like_t ret =
   //esp_log_set_vprintf(&LOG_TO_TELNET);
   //TelnetStream.println("start logging = ");
   //TelnetStream.println(ret);
-
 
   // Set up mDNS responder:
   // - first argument is the domain name, in this example
   //   the fully-qualified domain name is "esp8266.local"
   // - second argument is the IP address to advertise
   //   we send our IP address on the WiFi network
+  #ifdef BMS_mDNS
   if (!MDNS.begin(WiFi.getHostname()))
   {
     ESP_LOGE(TAG, "Error setting up MDNS responder!");
@@ -1621,6 +1731,7 @@ void onWifiConnect(WiFiEvent_t event, WiFiEventInfo_t info)
     // Add service to MDNS-SD
     MDNS.addService("http", "tcp", 80);
   }
+  #endif
 
   ESP_LOGI(TAG, "You can access DIYBMS interface at http://%s.local or http://%s", WiFi.getHostname(), WiFi.localIP().toString().c_str());
 
@@ -1639,6 +1750,7 @@ void onWifiDisconnect(WiFiEvent_t event, WiFiEventInfo_t info)
   xTaskNotify(tftwakeup_task_handle, 0x01, eNotifyAction::eSetValueWithOverwrite);
 }
 
+/*
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason)
 {
   ESP_LOGE(TAG, "Disconnected from MQTT.");
@@ -1806,11 +1918,16 @@ void onMqttConnect(bool sessionPresent)
   //myTimerSendMqttPacket.attach(5, sendMqttPacket);
   //myTimerSendMqttStatus.attach(25, sendMqttStatus);
 }
+*/
 
 void LoadConfiguration()
 {
+  ESP_LOGI("Reading config");
   if (Settings::ReadConfig("diybms", (char *)&mysettings, sizeof(mysettings)))
+  {
+    ESP_LOGI("Read config");
     return;
+  }
 
   ESP_LOGI("Apply default config");
 
@@ -1896,6 +2013,7 @@ void LoadConfiguration()
   }
 }
 
+/*
 uint8_t lazyTimerMode = 0;
 //Do activities which are not critical to the system like background loading of config, or updating timing results etc.
 void lazy_tasks(void *param)
@@ -1994,6 +2112,7 @@ void lazy_tasks(void *param)
     }
   } //end for
 }
+*/
 
 void resetAllRules()
 {
@@ -2148,8 +2267,6 @@ void TerminalBasedWifiSetup(HardwareSerial stream)
   ESP.restart();
 }
 
-
-
 void createFile(fs::FS &fs, const char *path, const char *message)
 {
   //ESP_LOGD(TAG,"Writing file: %s", path);
@@ -2192,10 +2309,6 @@ void appendFile(fs::FS &fs, const char *path, const char *message)
   file.close();
 }
 
-
-
-
-
 void dumpByte(uint8_t data)
 {
   if (data <= 0x0F)
@@ -2205,19 +2318,15 @@ void dumpByte(uint8_t data)
   SERIAL_DEBUG.print(data, HEX);
 }
 
-
-
 void cell_modem_task(void *param)
 {
-    cell_modem.init();
-    while (1) {
-        cell_modem.loop();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
+  cell_modem.init();
+  while (1)
+  {
+    cell_modem.loop();
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }
 }
-
-
-
 
 void setup()
 {
@@ -2237,6 +2346,7 @@ void setup()
   SERIAL_DEBUG.println(diybms_logo);
 
   ESP_LOGI(TAG, "CONTROLLER - ver:%s compiled %s", GIT_VERSION, COMPILE_DATE_TIME);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
@@ -2250,9 +2360,11 @@ void setup()
   hal.ConfigurePins(WifiPasswordClear);
   hal.ConfigureI2C(TCA6408Interrupt, TCA9534AInterrupt);
   hal.ConfigureVSPI();
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   // Start CAN
   can->begin();
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   //See if we can get a sensible reading from the TFT touch chip XPT2046
   //if we can, then a screen is fitted, so enable it
@@ -2269,10 +2381,9 @@ void setup()
   {
     ESP_LOGI(TAG, "TFT screen is NOT installed");
   }
-  
-
 
   SetControllerState(ControllerState::PowerUp);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   //hal.Led(0);
 
@@ -2289,7 +2400,7 @@ void setup()
   }
 
   mountSDCard();
-
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   //All comms to i2c needs to go through this single task
   //to prevent issues with thread safety on the i2c hardware/libraries
@@ -2298,19 +2409,22 @@ void setup()
   //Create i2c task on CPU 0 (normal code runs on CPU 1)
   xTaskCreatePinnedToCore(i2c_task, "i2c", 2048, nullptr, configMAX_PRIORITIES - 1, &i2c_task_handle, 0);
   //xTaskCreatePinnedToCore(ledoff_task, "ledoff", 1048, nullptr, 1, &ledoff_task_handle, 0);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   //xTaskCreate(avrprog_task, "avrprog", 3000, &_avrsettings, configMAX_PRIORITIES - 5, &avrprog_task_handle);
 
   xTaskCreate(updatetftdisplay_task, "tftupd", 2048, nullptr, 1, &updatetftdisplay_task_handle);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
   xTaskCreate(tftsleep_task, "tftslp", 900, nullptr, 1, &tftsleep_task_handle);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
   xTaskCreate(tftwakeup_task, "tftwake", 1900, nullptr, 1, &tftwakeup_task_handle);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   xTaskCreate(wifiresetdisable_task, "wifidbl", 1048, nullptr, 1, &wifiresetdisable_task_handle);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
-  xTaskCreate(sdcardlog_task, "sdlog", 4096, nullptr, 1, &sdcardlog_task_handle);
-  xTaskCreate(sdcardlog_outputs_task, "sdout", 4096, nullptr, 1, &sdcardlog_outputs_task_handle);
-
-
+  //  xTaskCreate(sdcardlog_task, "sdlog", 4096, nullptr, 1, &sdcardlog_task_handle);
+  //  xTaskCreate(sdcardlog_outputs_task, "sdout", 4096, nullptr, 1, &sdcardlog_outputs_task_handle);
 
   //xTaskCreate(mqtt1, "mqtt1", 3000, nullptr, 1, &mqtt1_task_handle);
   //xTaskCreate(mqtt2, "mqtt2", 3000, nullptr, 1, &mqtt2_task_handle);
@@ -2326,9 +2440,10 @@ void setup()
 
   //xTaskCreate(cell_modem_task, "cell_modem", 4096, nullptr, configMAX_PRIORITIES - 1, &cell_modem_task_handle);
 
-// RMC Just added back
+  // RMC Just added back
   hal.ConfigureVSPI();
   init_tft_display();
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   //Pre configure the array
   memset(&cmi, 0, sizeof(cmi));
@@ -2336,15 +2451,19 @@ void setup()
   {
     DIYBMSServer::clearModuleValues(i);
   }
+  pi.soc = 50;
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   resetAllRules();
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   //Receive is IO2 which means the RX1 plug must be disconnected for programming to work!
   SERIAL_DATA.begin(COMMS_BAUD_RATE, SERIAL_8N1, 2, 32); // Serial for comms to modules
 
-  myPacketSerial.begin(&SERIAL_DATA, &onPacketReceived, sizeof(PacketStruct), SerialPacketReceiveBuffer, sizeof(SerialPacketReceiveBuffer));
+  //  myPacketSerial.begin(&SERIAL_DATA, &onPacketReceived, sizeof(PacketStruct), SerialPacketReceiveBuffer, sizeof(SerialPacketReceiveBuffer));
 
   LoadConfiguration();
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
 #ifdef RMC
   //Set relay defaults
@@ -2354,9 +2473,9 @@ void setup()
     //Set relay defaults
     hal.SetOutputState(y, mysettings.rulerelaydefault[y]);
   }
-  #endif
+#endif
   //Fire task to record state of outputs to SD Card
-  xTaskNotify(sdcardlog_outputs_task_handle, 0x00, eNotifyAction::eNoAction);
+  //xTaskNotify(sdcardlog_outputs_task_handle, 0x00, eNotifyAction::eNoAction);
 
   //Allow user to press SPACE BAR key on serial terminal
   //to enter text based WIFI setup
@@ -2385,6 +2504,7 @@ void setup()
   //Settings::WriteConfig("diybmswifi",(char *)&config, sizeof(config));
   //clearAPSettings = 0;
 
+  ESP_LOGI(TAG, "LoadConfigFromEEPROM?");
   if (!DIYBMSSoftAP::LoadConfigFromEEPROM())
   {
     //We have just started up and the EEPROM is empty of configuration
@@ -2396,6 +2516,7 @@ void setup()
   }
   else
   {
+    ESP_LOGI(TAG, "Starting WIFI from config");
 
     /* Explicitly set the ESP to be a WiFi-client, otherwise by default,
       would try to act as both a client and an access-point */
@@ -2405,27 +2526,35 @@ void setup()
     //Newer IDF version will need this...
     //WiFi.onEvent(onWifiConnect, arduino_event_id_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     //WiFi.onEvent(onWifiDisconnect, arduino_event_id_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    ESP_LOGI(TAG, "Starting WIFI from config (done)");
+    ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
-    mqttClient.onConnect(onMqttConnect);
-    mqttClient.onDisconnect(onMqttDisconnect);
+    //    mqttClient.onConnect(onMqttConnect);
+    //    mqttClient.onDisconnect(onMqttDisconnect);d
 
-    connectToMqtt();
+    //    connectToMqtt();
 
-    xTaskCreate(enqueue_task, "enqueue", 1024, nullptr, configMAX_PRIORITIES / 2, &enqueue_task_handle);
+    ESP_LOGI(TAG, "Starting tasks...");
+    ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
     xTaskCreate(rules_task, "rules", 2048, nullptr, configMAX_PRIORITIES - 5, &rule_task_handle);
+    ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
-    xTaskCreate(influxdb_task, "influxdb", 1500, nullptr, configMAX_PRIORITIES - 5, &influxdb_task_handle);
+    xTaskCreate(influxdb_task, "influxdb", 8192, nullptr, configMAX_PRIORITIES - 5, &influxdb_task_handle);
+    ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
     //We have just started...
     SetControllerState(ControllerState::Stabilizing);
+    ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
     //Attempt connection in setup(), loop() will also try every 30 seconds
+    ESP_LOGI(TAG, "Connecting to WIFI");
     connectToWifi();
+    ESP_LOGI(TAG, "Connecting to WIFI (done)");
+    ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
     //Wake screen on power up
     xTaskNotify(tftwakeup_task_handle, 0x00, eNotifyAction::eNoAction);
-
   }
 
   //SDM sdm(SERIAL_RS485, 9600, RS485_ENABLE, SERIAL_8N1, RS485_RX, RS485_TX); // pins for DIYBMS => RX pin 21, TX pin 22
@@ -2449,7 +2578,7 @@ void loop()
       connectToWifi();
       wifitimer = currentMillis;
 
-      connectToMqtt();
+      //connectToMqtt();
     }
   }
 
@@ -2491,6 +2620,5 @@ void loop()
   ArduinoOTA.handle();
 
   // Call update to receive, decode and process incoming packets
-  myPacketSerial.checkInputStream();
+  //  myPacketSerial.checkInputStream();
 }
-

@@ -1,3 +1,4 @@
+
 #include "Rules.h"
 
 void Rules::ClearValues()
@@ -98,6 +99,7 @@ void Rules::ProcessBank(uint8_t bank, PackInfo *p)
     soc = (uint8_t) p->soc;
     soh = (uint8_t) p->soh;
     current = p->current;
+    averageCurrent = p->averageCurrent;
     remainingCapacityMah = p->remainingCapacityAh * 1000;
     fullChargeCapacityMah = p->fullChargeCapacityAh * 1000;
 

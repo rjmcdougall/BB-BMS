@@ -118,6 +118,12 @@ bool BQ_DEBUG = false;
 #define BIT_SB_UTD                1
 #define BIT_SB_UTC                0
 
+// Cell Balancing
+#define CB_ACTIVE_CELLS 0x83
+#define CB_STATUS1 0x85
+#define CB_STATUS2 0x86
+#define CB_STATUS3 0x87
+
 // Inline functions
 #define CELL_NO_TO_ADDR(cellNo) (0x14 + ((cellNo-1)*2))
 #define LOW_BYTE(data) (byte)(data & 0x00FF)
@@ -141,19 +147,38 @@ void bq76952::initBQ()
 {
 }
 
+/*
+unsigned int bq76952::directCommand(uint8_t command) {
+  uint8_t value[2];
+  uint8_t return_value;
+
+  int ret = BQhal->directCommand(I2C_NUM_0, BQaddr, command, &value[0]);
+  return_value = value[0] | (value[1] << 8);
+  ESP_LOGD(TAG,"directCommand Reply %x %i", return_value, ret);
+  vTaskDelay(pdMS_TO_TICKS(10));
+  return return_value;
+}
+*/
+
+
 unsigned int bq76952::directCommand(uint8_t command)
 {
     esp_err_t ret;
-    uint8_t value;
+    uint8_t value[2];
+    uint32_t return_value;
 
     ESP_LOGD(TAG,"directCommand Send cmd %i", command);
     //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(I2C_NUM_0, BQaddr, command, &value[0], 2));
-    ret = BQhal->readByte(I2C_NUM_0, BQaddr, command, &value);
-    //ret = value[0] | (value[1] << 8);
-    //ESP_LOGD(TAG,"directCommand Reply %i", ret);
+    //ret = BQhal->readByte(I2C_NUM_0, BQaddr, command, &return_value);
+    ret = BQhal->readByte(I2C_NUM_0, BQaddr, command, &value[0]);
+    ret = ret + BQhal->readByte(I2C_NUM_0, BQaddr, command + 1, &value[1]);
+    //ret = BQhal->readMultipleBytes(I2C_NUM_0, BQaddr, command, (uint8_t *)&return_value, 2);
+    return_value = value[0] | (value[1] << 8);
+    ESP_LOGD(TAG,"directCommand Reply %i", ret);
     vTaskDelay(pdMS_TO_TICKS(10));
-    return value;
+    return return_value;
 }
+
 
 bool bq76952::read16(uint8_t reg, unsigned int *value)
 {
@@ -275,13 +300,13 @@ bool bq76952::readDataMemory(uint16_t addr, uint8_t *data)
 
     esp_err_t ret = BQhal->writeMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_SUBCMD_LOW, data, 2);
     if (ret != ESP_OK) {
-      ESP_LOGD(TAG, "writecmd failed");
+      //ESP_LOGD(TAG, "writecmd failed");
       return false;
     }
 
     ESP_LOGD(TAG,"BQreadDataMemory Send Read Req %i", addr);
     ret = BQhal->readByte(I2C_NUM_0, BQaddr, CMD_DIR_RESP_START, data);
-    ESP_LOGD(TAG,"BQreadDataMemory Reply %i", ret);
+    ESP_LOGD(TAG,"BQreadDataMemory Reply %x %i", *data, ret);
     return (ret == ESP_OK);
 }
 
@@ -427,7 +452,7 @@ bq76952::bq76952(uint8_t addr, HAL_ESP32 *hal) {
 void bq76952::begin(void) {
   initBQ();
   if(BQ_DEBUG) {
-    ESP_LOGD(TAG,"Initializing BQ76952...");
+    //ESP_LOGD(TAG,"Initializing BQ76952...");
   }
 }
 
@@ -436,7 +461,7 @@ void bq76952::begin(void) {
 // Reset the BQ chip
 void bq76952::reset(void) {
     subCommand(0x0012);
-    ESP_LOGD(TAG,"Resetting BQ76952...");
+    //ESP_LOGD(TAG,"Resetting BQ76952...");
 }
 
 // Read single cell voltage
@@ -457,6 +482,33 @@ void bq76952::getAllCellVoltages(unsigned int* cellArray) {
     cellArray[x] = getCellVoltage(x + 1);
 }
 
+// Get Cell Balancing Status per cell
+void bq76952::getCellBalanceStatus(bool *cellArray){
+  subCommand(CB_ACTIVE_CELLS);
+  uint16_t status = subCommandResponseInt();
+  //ESP_LOGD(TAG," CB_ACTIVE_CELLS status %x", status);
+  for (int i = 0; i < 16; i++) {
+    cellArray[i] = ((status & (1 << i)) > 0);
+  }
+}
+
+// Get balance times per cell
+void bq76952::getCellBalanceTimes(uint32_t *cellArray) {
+
+    uint32_t buffer[32];
+
+    subCommand(CB_STATUS2);
+    subCommandResponseBlock((uint8_t *)&buffer[0], 32);
+    //for (int i = 0; i < 8; i++) {
+    //    ESP_LOGD(TAG," balance: %x", buffer[i]);
+    //}
+    memcpy((uint8_t *)cellArray, &buffer[0], 32);
+    subCommand(CB_STATUS3);
+    subCommandResponseBlock((uint8_t *)&buffer[0] , 32);
+    memcpy(cellArray + 8, &buffer[0], 32);
+    return;
+}
+
 // Measure CC2 current
 unsigned int bq76952::getCurrent(void) {
   return directCommand(CMD_DIR_CC2_CUR);
@@ -464,8 +516,11 @@ unsigned int bq76952::getCurrent(void) {
 
 // Measure chip temperature in °C
 float bq76952::getInternalTemp(void) {
-  float raw = directCommand(CMD_DIR_INT_TEMP)/10.0;
-  return (raw - 273.15);
+  int raw = directCommand(CMD_DIR_INT_TEMP);
+  float calc = raw / 10.0;
+  // TODO: check why this isn't K
+  //return (raw - 273.15);
+  return (calc - 273.15);
 }
 
 // Get DASTATUS5
@@ -479,7 +534,6 @@ bool bq76952::getDASTATUS5() {
     vTaskDelay(pdMS_TO_TICKS(10));
   }
   */
-
   return subCommandResponseBlock(&subcmdCache[0], 32);
 }
 
@@ -589,10 +643,10 @@ void bq76952::setFET(bq76952_fet fet, bq76952_fet_state state) {
 bool bq76952::isCharging(void) {
   byte regData = (byte)directCommand(CMD_DIR_FET_STAT);
   if(regData & 0x01) {
-    ESP_LOGD(TAG,"Charging FET -> ON");
+    //ESP_LOGD(TAG,"Charging FET -> ON");
     return true;
   }
-  ESP_LOGD(TAG,"Charging FET -> OFF");
+  //ESP_LOGD(TAG,"Charging FET -> OFF");
   return false;
 }
 
@@ -600,7 +654,7 @@ bool bq76952::isCharging(void) {
 bool bq76952::isDischarging(void) {
   byte regData = (byte)directCommand(CMD_DIR_FET_STAT);
   if(regData & 0x04) {
-    ESP_LOGD(TAG,"Discharging FET -> ON");
+    //ESP_LOGD(TAG,"Discharging FET -> ON");
     return true;
   }
   ESP_LOGD(TAG,"Discharging FET -> OFF");
@@ -628,13 +682,13 @@ void bq76952::setCellOvervoltageProtection(unsigned int mv, unsigned int ms) {
   if(thresh < 20 || thresh > 110)
     thresh = 86;
   else {
-    ESP_LOGD(TAG,"COV Threshold => ", thresh);
+    //ESP_LOGD(TAG,"COV Threshold => ", thresh);
     writeDataMemory(0x9278, thresh, 1);
   }
   if(dly < 1 || dly > 2047)
     dly = 74;
   else {
-    ESP_LOGD(TAG,"COV Delay => %i", dly);
+    //ESP_LOGD(TAG,"COV Delay => %i", dly);
     writeDataMemory(0x9279, dly, 2);
   }
 }

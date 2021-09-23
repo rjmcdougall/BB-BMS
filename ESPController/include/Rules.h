@@ -66,6 +66,7 @@ public:
     uint8_t soc;
     uint8_t soh;
     int32_t current;
+    int32_t averageCurrent;
     uint32_t fullChargeCapacityMah;
     uint32_t remainingCapacityMah;
     uint32_t highestPackVoltage;

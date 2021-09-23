@@ -299,7 +299,7 @@ public:
     esp_err_t readMultipleBytes(i2c_port_t i2c_num, uint8_t dev, uint8_t reg, uint8_t data[], int num);
     esp_err_t writeMultipleBytes(i2c_port_t i2c_num, uint8_t deviceAddress, uint8_t i2cregister, uint8_t data[], int num);
     bool isConnected(i2c_port_t i2c_num, uint8_t dev);
-    esp_err_t directCommand(i2c_port_t i2c_num, uint8_t dev, uint8_t command, uint8_t data[], int num);
+    esp_err_t directCommand(i2c_port_t i2c_num, uint8_t dev, uint8_t command, uint8_t data[]);
 
 private:
     SemaphoreHandle_t xVSPIMutex = NULL;
