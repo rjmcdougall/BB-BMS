@@ -57,6 +57,9 @@ public:
     bool rule_outcome[RELAY_RULES];
     uint32_t packvoltage[maximum_number_of_banks];
 
+    uint32_t canRxCnt;
+    uint32_t canTxCnt;
+
     uint16_t lowestvoltageinpack[maximum_number_of_banks];
     uint16_t highestvoltageinpack[maximum_number_of_banks];
 

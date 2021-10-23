@@ -23,7 +23,7 @@ void bms_can::begin(void)
 		ESP_LOGD(TAG, "Initializing bms_can...");
 	}
 	ESP_LOGD(TAG, "Initializing bms:series modules = %d", settings->totalNumberOfSeriesModules);
-	ESP_LOGD(TAG, "Initializing bms:series modules = %d", settings->controller_id);
+	ESP_LOGD(TAG, "Initializing bms:controller id = %d", settings->controller_id);
 	initCAN();
 }
 
@@ -46,6 +46,9 @@ CellModuleInfo *bms_can::cmi = nullptr;
 PackInfo *bms_can::pi = nullptr;
 unsigned int bms_can::rx_buffer_last_id = -1;
 
+int bms_can::rx_count = 0;
+int bms_can::tx_count = 0;
+
 static void send_packet_wrapper(unsigned char *data, unsigned int len);
 
 void bms_can::can_read_task_static(void *param)
@@ -61,6 +64,21 @@ void bms_can::can_process_task_static(void *param)
 void bms_can::can_status_task_static(void *param)
 {
 	static_cast<bms_can *>(param)->can_status_task();
+}
+
+void enable_alerts()
+{
+	// Reconfigure alerts to detect Error Passive and Bus-Off error states
+
+	uint32_t alerts_to_enable = CAN_ALERT_ERR_PASS | CAN_ALERT_BUS_OFF;
+	if (can_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK)
+	{
+		ESP_LOGI(TAG, "Alerts reconfigured\n");
+	}
+	else
+	{
+		ESP_LOGI(TAG, "Failed to reconfigure alerts");
+	}
 }
 
 void bms_can::initCAN()
@@ -87,7 +105,8 @@ void bms_can::initCAN()
 	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_5, gpio_num_t::GPIO_NUM_4, CAN_MODE_LISTEN_ONLY);
 	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_5, gpio_num_t::GPIO_NUM_35, CAN_MODE_NORMAL);
 	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_13, gpio_num_t::GPIO_NUM_35, CAN_MODE_NORMAL);
-	can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_13, gpio_num_t::GPIO_NUM_36, CAN_MODE_NORMAL);
+	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_13, gpio_num_t::GPIO_NUM_36, CAN_MODE_NORMAL);
+	can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_25, gpio_num_t::GPIO_NUM_36, CAN_MODE_NORMAL);
 	//g_config.mode = CAN_MODE_NORMAL;
 	can_timing_config_t t_config = CAN_TIMING_CONFIG_500KBITS();
 	//can_timing_config_t t_config = CAN_TIMING_CONFIG_50KBITS();
@@ -104,18 +123,10 @@ void bms_can::initCAN()
 		ESP_LOGI(TAG, "Failed to install CAN driver\n");
 	}
 
-	//Reconfigure alerts to detect Error Passive and Bus-Off error states
-	/*
-	uint32_t alerts_to_enable = CAN_ALERT_ERR_PASS | CAN_ALERT_BUS_OFF;
-	if (can_reconfigure_alerts(alerts_to_enable, NULL) == ESP_OK)
-	{
-		printf("Alerts reconfigured\n");
-	}
-	else
-	{
-		printf("Failed to reconfigure alerts");
-	}
-	*/
+	// Let CANBUS start
+	//vTaskDelay(pdMS_TO_TICKS(3000));
+
+	enable_alerts();
 
 	//Start CAN driver
 	if (can_start() == ESP_OK)
@@ -126,10 +137,12 @@ void bms_can::initCAN()
 	{
 		ESP_LOGI(TAG, "Failed to start driver\n");
 	}
+
 	// TODO: move these to init only once
 	ESP_LOGI(TAG, "CAN  init task queue_canrx = %lx\n", &bms_can::queue_canrx);
 	xTaskCreate(bms_can::can_read_task_static, "bms_can_read", 8000, nullptr, 1, nullptr);
 	xTaskCreate(bms_can::can_process_task_static, "bms_can_process", 8000, nullptr, 1, nullptr);
+	//vTaskDelay(pdMS_TO_TICKS(5000));
 	xTaskCreate(bms_can::can_status_task_static, "bms_can_status", 8000, nullptr, 1, nullptr);
 }
 
@@ -143,6 +156,7 @@ void bms_can::sleep_reset()
 
 void bms_can::can_read_task()
 {
+	vTaskDelay(pdMS_TO_TICKS(2000));
 	ESP_LOGI(TAG, "CAN  starting read task\n");
 	bms_can::queue_canrx = xQueueCreate(10, sizeof(can_message_t));
 	ESP_LOGI(TAG, "CAN  read task queue_canrx = %lx\n", &bms_can::queue_canrx);
@@ -164,6 +178,7 @@ void bms_can::can_read_task()
 			if (!(message.flags & CAN_MSG_FLAG_RTR))
 			{
 				xQueueSendToBack(bms_can::queue_canrx, &message, 16);
+				rx_count++;
 			}
 		}
 		else if (res == ESP_ERR_TIMEOUT)
@@ -176,6 +191,7 @@ void bms_can::can_read_task()
 
 void bms_can::can_process_task()
 {
+	vTaskDelay(pdMS_TO_TICKS(2000));
 	ESP_LOGI(TAG, "CAN  starting process task\n");
 	ESP_LOGI(TAG, "CAN  process task queue_canrx = %lx\n", &bms_can::queue_canrx);
 	ESP_LOGI(TAG, "CAN  process task queue_canrx contents = %lx\n", bms_can::queue_canrx);
@@ -304,7 +320,7 @@ void bms_can::commands_process_packet(unsigned char *data, unsigned int len)
 
 	sprintf(buffer, "CAN  command %x\n", packet_id);
 
-//	TelnetStream.println(buffer);
+	//	TelnetStream.println(buffer);
 
 	switch (packet_id)
 	{
@@ -390,8 +406,8 @@ void bms_can::decode_msg(uint32_t eid, uint8_t *data8, int len, bool is_replaced
 		case CAN_PACKET_PROCESS_RX_BUFFER:
 			ESP_LOGI(TAG, "CAN  decode: CAN_PACKET_PROCESS_RX_BUFFER id %x cmd %d, len %d\n", id, cmd, len);
 			sprintf(buffer, "CAN  CAN_PACKET_PROCESS_RX_BUFFER 		id %x cmd %d\n", id, cmd);
-//			TelnetStream.println(buffer);
-//			TelnetStream.flush();
+			//			TelnetStream.println(buffer);
+			//			TelnetStream.flush();
 			ind = 0;
 			rx_buffer_last_id = data8[ind++];
 			commands_send = data8[ind++];
@@ -773,12 +789,18 @@ void bms_can::can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len)
 	//ESP_LOGI(TAG, "CAN tx id %x len %d", id, len);
 	if (can_transmit(&txmsg, pdMS_TO_TICKS(1000)) != ESP_OK)
 	{
-		//ESP_LOGI(TAG, "CAN tx failed");
-		return;
+		ESP_LOGI(TAG, "CAN tx failed");
+		//return;
 
 		uint32_t alerts = 0;
-		can_read_alerts(&alerts, portMAX_DELAY);
+		ESP_LOGI(TAG, "CAN reading alerts");
+		can_read_alerts(&alerts, pdMS_TO_TICKS(1000));
 		ESP_LOGI(tag, "---Alert Read: -- : %04x", alerts);
+
+		if (alerts & CAN_ALERT_RECOVERY_IN_PROGRESS)
+		{
+			ESP_LOGI(tag, "Recovery in progress");
+		}
 
 		if (alerts & CAN_ALERT_ABOVE_ERR_WARN)
 		{
@@ -803,9 +825,15 @@ void bms_can::can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len)
 		if (alerts & CAN_ALERT_BUS_OFF)
 		{
 			ESP_LOGE(tag, "Bus Off --> Initiate bus recovery");
-			//can_initiate_recovery(); //Needs 128 occurrences of bus free signal
-			vTaskDelay(pdMS_TO_TICKS(1000));
+			can_initiate_recovery(); //Needs 128 occurrences of bus free signal
 		}
+
+		//can_clear_transmit_queue();
+		//	ESP_LOGE(tag, "--> Initiate bus recovery");
+		//can_initiate_recovery();
+		//can_start();
+		//	ESP_LOGE(tag, " --> Returned from bus recovery");
+		vTaskDelay(pdMS_TO_TICKS(1000));
 
 		if (alerts & CAN_ALERT_BUS_RECOVERED)
 		{
@@ -813,12 +841,20 @@ void bms_can::can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len)
 
 			// only for testing. Does not help !!
 			//esp_err_t res = can_reconfigure_alerts(alerts_enabled, NULL);
-			ESP_LOGI(tag, "Bus Recovered");// %d--> restarting Can", res);
+			ESP_LOGI(tag, "Bus Recovered"); // %d--> restarting Can", res);
+
+			enable_alerts();
 
 			//put can in start state again and re-enable alert monitoring
-			//can_start();
+			can_start();
 		}
 	}
+	else
+	{
+		//ESP_LOGI(TAG, "CAN tx success id %x len %d", id, len);
+		tx_count++;
+	}
+	//ESP_LOGI(TAG, "CAN tx end");
 }
 /*
     #ifdef CAN_DEBUG
@@ -829,21 +865,38 @@ void bms_can::can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len)
             }
             ESP_LOGI(TAG, "\n");
 #endif
-      // check the health of the bus
-      can_status_info_t status;
-      can_get_status_info(&status);
-      ESP_LOGI(TAG, "  rx-q:%d, tx-q:%d, rx-err:%d, tx-err:%d, arb-lost:%d, bus-err:%d, state: %s",
-                        status.msgs_to_rx, status.msgs_to_tx, status.rx_error_counter, status.tx_error_counter, status.arb_lost_count,
-                        status.bus_error_count, ESP32_CAN_STATUS_STRINGS[status.state]);
+
       //vTaskDelay(1000 / portTICK_PERIOD_MS);
     */
 
 void bms_can::can_status_task()
 {
+	vTaskDelay(pdMS_TO_TICKS(2000));
+
 	for (;;)
 	{
 		int32_t send_index = 0;
 		uint8_t buffer[8];
+
+		// check the health of the bus
+		can_status_info_t status;
+		can_get_status_info(&status);
+		ESP_LOGI(TAG, "  %d/%d, rx-q:%d, tx-q:%d, rx-err:%d, tx-err:%d, arb-lost:%d, bus-err:%d, state: %s",
+				 bms_can::rx_count, bms_can::tx_count,
+				 status.msgs_to_rx, status.msgs_to_tx, status.rx_error_counter, status.tx_error_counter, status.arb_lost_count,
+				 status.bus_error_count, ESP32_CAN_STATUS_STRINGS[status.state]);
+		if (status.state == CAN_STATE_STOPPED)
+		{
+			//Start CAN driver
+			if (can_start() == ESP_OK)
+			{
+				ESP_LOGI(TAG, "CAN Driver started\n");
+			}
+			else
+			{
+				ESP_LOGI(TAG, "Failed to start driver\n");
+			}
+		}
 
 		buffer_append_float32_auto(buffer, bms_if_get_v_tot(), &send_index);
 		buffer_append_float32_auto(buffer, bms_if_get_v_charge(), &send_index);
@@ -964,7 +1017,8 @@ void bms_can::can_status_task()
 		}
 
 		//chThdSleep(sleep_time);
-		delay(sleep_time);
+		//delay(sleep_time);
+		vTaskDelay(sleep_time / portTICK_PERIOD_MS);
 	}
 }
 
@@ -1071,3 +1125,13 @@ float bms_can::bms_if_get_temp(int sensor)
 
 //uint8_t totalNumberOfBanks;
 //  uint8_t totalNumberOfSeriesModules;
+
+int bms_can::rxcnt(void)
+{
+	return bms_can::rx_count;
+}
+
+int bms_can::txcnt(void)
+{
+	return bms_can::tx_count;
+}

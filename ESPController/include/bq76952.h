@@ -83,7 +83,7 @@ typedef union temperatureProtection
 class bq76952
 {
 public:
-	bq76952(uint8_t addr, HAL_ESP32 *hal);
+	bq76952(uint8_t addr, HAL_ESP32 *hal, i2c_port_t port);
 	void begin(void);
 	void reset(void);
 	bool isConnected(void);
@@ -132,4 +132,5 @@ private:
 
 	HAL_ESP32 *BQhal;
 	uint8_t BQaddr;
+	i2c_port_t port;
 };

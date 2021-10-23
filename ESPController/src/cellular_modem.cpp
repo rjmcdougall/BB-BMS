@@ -1,3 +1,4 @@
+#ifdef MODEM
 #include "defines.h"
 #include "cellular_modem.h"
 
@@ -60,3 +61,4 @@ ESP_LOGD(TAG,"Setting up cell modem...");
 bool cellular_modem::loop() {
 
 }
+#endif

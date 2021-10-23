@@ -24,15 +24,15 @@ uint16_t bq34z100::read_register(uint8_t reg, uint8_t len)
     uint8_t tmp_value[2] = {0, 0};
 
     //ESP_LOGD(TAG,"read16 Send cmd %i", reg);
-    //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(I2C_NUM_0, BQaddr, command, &value[0], 2));
-    ret = BQhal->readByte(I2C_NUM_0, BQaddr, reg, &tmp_value[0]);
+    //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(port, BQaddr, command, &value[0], 2));
+    ret = BQhal->readByte(port, BQaddr, reg, &tmp_value[0]);
     if (ret != ESP_OK)
     {
         return false;
     }
     if (len == 2)
     {
-        ret = BQhal->readByte(I2C_NUM_0, BQaddr, reg + 1, &tmp_value[1]);
+        ret = BQhal->readByte(port, BQaddr, reg + 1, &tmp_value[1]);
         if (ret != ESP_OK)
         {
             return false;
@@ -48,13 +48,13 @@ uint16_t bq34z100::read_control(uint8_t low, uint8_t high)
     uint8_t cmd[2];
     cmd[0] = low;
     cmd[1] = high;
-    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(I2C_NUM_0, BQaddr, 0, cmd, 2));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(port, BQaddr, 0, cmd, 2));
 
     uint8_t value[2];
     int16_t ret;
 
     ESP_LOGD(TAG, "readControl Send");
-    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->readMultipleBytes(I2C_NUM_0, BQaddr, 0, &value[0], 2));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->readMultipleBytes(port, BQaddr, 0, &value[0], 2));
     ret = value[0] | value[1] << 8;
     ESP_LOGD(TAG, "readControl Reply %i", ret);
     return ret;
@@ -62,7 +62,7 @@ uint16_t bq34z100::read_control(uint8_t low, uint8_t high)
 
 bool bq34z100::isConnected(void)
 {
-    return BQhal->isConnected(I2C_NUM_0, BQaddr);
+    return BQhal->isConnected(port, BQaddr);
 }
 
 // Compute checksome = ~(sum of all bytes)
@@ -79,11 +79,13 @@ byte bq34z100::computeChecksum(byte oldChecksum, byte data)
 
 /////// API FUNCTIONS ///////
 
-bq34z100::bq34z100(uint8_t addr, HAL_ESP32 *hal)
+bq34z100::bq34z100(uint8_t addr, HAL_ESP32 *hal, i2c_port_t p)
 {
     // Constructor
     BQhal = hal;
     BQaddr = addr;
+    port = p;
+
     //pinMode(alertPin, INPUT);
     // TODO - Attach IRQ here
 }

@@ -18,7 +18,7 @@
 class bq34z100
 {
 public:
-    bq34z100(uint8_t addr, HAL_ESP32 *hal);
+    bq34z100(uint8_t addr, HAL_ESP32 *hal, i2c_port_t port);
     void begin(void);
     bool isConnected(void);
 
@@ -98,5 +98,6 @@ private:
     byte computeChecksum(byte oldChecksum, uint8_t data);
 
     HAL_ESP32 *BQhal;
+    i2c_port_t port;
     uint8_t BQaddr;
 };

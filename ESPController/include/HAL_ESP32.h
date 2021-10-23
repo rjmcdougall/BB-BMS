@@ -22,6 +22,8 @@ PCB WITH RS485/CANBUS/TFT DISPLAY
 #define BAJA_HEADLIGHT_PIN GPIO_NUM_13
 #define BAJA_TAILLIGHT_PIN GPIO_NUM_12
 
+#define M5_BLK_PWM_CHANNEL 7 // LEDC_CHANNEL_7
+
 //GPIO34 (input only pin)
 #define TCA9534A_INTERRUPT_PIN GPIO_NUM_34
 #define TCA9534APWR_ADDRESS 0x38
@@ -32,7 +34,7 @@ PCB WITH RS485/CANBUS/TFT DISPLAY
 #define TCA9534APWR_INPUTMASK B10000000
 
 //GPIO39 (input only pin)
-#define TCA6408_INTERRUPT_PIN GPIO_NUM_39
+#define TCA6408_INTERRUPT_PIN GPIO_NUM_39foo
 #define TCA6408_ADDRESS 0x20
 #define TCA6408_INPUT 0x00
 #define TCA6408_OUTPUT 0x01
@@ -42,13 +44,13 @@ PCB WITH RS485/CANBUS/TFT DISPLAY
 
 #define VSPI_SCK GPIO_NUM_18
 
-#define TOUCH_IRQ GPIO_NUM_36
-#define TOUCH_CHIPSELECT GPIO_NUM_4 //4
+#define TOUCH_IRQ GPIO_NUM_39
+//#define TOUCH_CHIPSELECT GPIO_NUM_4foo //4
 //#define SDCARD_CHIPSELECT GPIO_NUM_5000 //BAJA
 
-#define RS485_RX GPIO_NUM_21
-#define RS485_TX GPIO_NUM_22
-#define RS485_ENABLE GPIO_NUM_35
+#define RS485_RX GPIO_NUM_21foo
+#define RS485_TX GPIO_NUM_22foo
+#define RS485_ENABLE GPIO_NUM_35foo
 
 struct TouchScreenValues
 {
@@ -81,6 +83,7 @@ public:
     void TFTScreenBacklight(bool Status);
     void SwapGPIO0ToOutput();
     void CANBUSEnable(bool value);
+    void AXPInit();
 
     bool IsVSPIMutexAvailable()
     {
@@ -222,12 +225,13 @@ public:
         //X is zero when not touched, left of screen is about 290, right of screen is about 3900
         //Y is 3130 when not touched, top of screen is 250, bottom is 3150
 
-        if (GetVSPIMutex())
+        // rewrite for i2c/m5
+        if (false && GetVSPIMutex())
         {
             //Slow down to 2Mhz SPI bus
             vspi.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
 
-            digitalWrite(TOUCH_CHIPSELECT, LOW);
+            //digitalWrite(TOUCH_CHIPSELECT, LOW);
 
             //We don't need accurate touch pressure for this application, so
             //only read Z2 register, we just want a boolean value at the end of the day
@@ -248,7 +252,7 @@ public:
             //uint16_t Z2 = 
             vspi.transfer(0);
 
-            digitalWrite(TOUCH_CHIPSELECT, HIGH);
+            //digitalWrite(TOUCH_CHIPSELECT, HIGH);
             vspi.endTransaction();
 
             ReleaseVSPIMutex();
@@ -270,8 +274,8 @@ public:
     {
         TouchScreenValues v = TouchScreenUpdate();
 
-        return !(v.pressure == 0 && v.X == 0 && v.Y == 0);
-        //return true;
+        //return !(v.pressure == 0 && v.X == 0 && v.Y == 0);
+        return true;
     }
 
     void ConfigureVSPI()

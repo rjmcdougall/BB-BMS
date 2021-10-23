@@ -24,6 +24,7 @@ static const char *ESP32_CAN_STATUS_STRINGS[] = {
 	"RECOVERY UNDERWAY"		 // CAN_STATE_RECOVERING
 };
 
+
 typedef enum
 {
 	HW_TYPE_VESC = 0,
@@ -289,6 +290,8 @@ class bms_can
 public:
 	bms_can(diybms_eeprom_settings *settings, CellModuleInfo *cmi, PackInfo *pi);
 	void begin(void);
+    int rxcnt(void);
+	int txcnt(void);
 
 private:
 	void initCAN();
@@ -322,8 +325,8 @@ private:
 	static bms_soc_soh_temp_stat bms_stat_msgs[CAN_BMS_STATUS_MSGS_TO_STORE];
 	static bms_soc_soh_temp_stat bms_stat_v_cell_min;
 	can_message_t rx_frames[RX_FRAMES_SIZE];
-	int rx_frame_read = 0;
-	int rx_frame_write = 0;
+	static int rx_count;
+	static int tx_count;
 	volatile HW_TYPE ping_hw_last = HW_TYPE_VESC;
 	uint8_t rx_buffer[RX_BUFFER_SIZE];
 	static unsigned int rx_buffer_last_id;
@@ -352,5 +355,4 @@ private:
     float bms_if_get_temp_ic();
     int HW_TEMP_CELLS_MAX();
     float bms_if_get_temp(int sensor);
-
 };

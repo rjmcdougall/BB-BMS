@@ -12,9 +12,11 @@
   This code runs on ESP32 DEVKIT-C and compiles with VS CODE and PLATFORM IO environment
 */
 
-#include "sdkconfig.h"
+//#include "sdkconfig.h"
 
-#define CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN 8192aa
+//#define TEST_FAKE_CELLS 1
+
+//#define CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN 8192aa
 
 #if defined(ESP8266)
 #error ESP8266 is not supported by this code
@@ -60,6 +62,8 @@ static const char *TAG = "diybms";
 #include "bq76952.h"
 #include "bq34z100.h"
 #include "bms_can.h"
+#include "AXP192.h"
+#include "speaker.h"
 
 //SDM sdm(SERIAL_RS485, 9600, RS485_ENABLE, SERIAL_8N1, RS485_RX, RS485_TX); // pins for DIYBMS => RX pin 21, TX pin 22
 
@@ -74,16 +78,17 @@ static const char *TAG = "diybms";
 
 HAL_ESP32 hal;
 
-bq76952 bq = bq76952(BQ_ADDR, &hal);
-bq34z100 bqz = bq34z100(BQZ_ADDR, &hal);
-
+AXP192 axp = AXP192(&hal);
+bq76952 bq = bq76952(BQ_ADDR, &hal, I2C_NUM_1);
+bq34z100 bqz = bq34z100(BQZ_ADDR, &hal, I2C_NUM_1);
 bms_can *can = new bms_can(&mysettings, &cmi[0], &pi);
+SPEAKER speaker = SPEAKER(&axp);
 
-#include "cellular_modem.h"
+//#include "cellular_modem.h"
 
-cellular_modem cell_modem = cellular_modem();
+//cellular_modem cell_modem = cellular_modem();
 
-XPT2046_Touchscreen touchscreen(TOUCH_CHIPSELECT, TOUCH_IRQ); // Param 2 - Touch IRQ Pin - interrupt enabled polling
+//XPT2046_Touchscreen touchscreen(TOUCH_CHIPSELECT, TOUCH_IRQ); // Param 2 - Touch IRQ Pin - interrupt enabled polling
 
 volatile bool emergencyStop = false;
 
@@ -1025,11 +1030,15 @@ void transmit_task(void *param)
 }
 */
 
+int canLastRxCnt = 0;
+int canLastTxCnt = 0;
+
 //Runs the rules and populates rule_outcome array with true/false for each rule
 //Rules based on module parameters/readings like voltage and temperature
 //are only processed once every module has returned at least 1 reading/communication
 void ProcessRules()
 {
+
   ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   rules.ClearValues();
@@ -1037,6 +1046,14 @@ void ProcessRules()
   rules.ClearErrors();
 
   rules.rule_outcome[Rule::BMSError] = false;
+
+  rules.canRxCnt = can->rxcnt() - canLastRxCnt;
+  rules.canTxCnt = can->txcnt() - canLastTxCnt;
+
+  ESP_LOGI(TAG, "can count = %d/%d", rules.canRxCnt, rules.canTxCnt);
+
+  canLastRxCnt = can->rxcnt();
+  canLastTxCnt = can->txcnt();
 
   QueueReadCells();
 
@@ -1124,7 +1141,9 @@ void ProcessRules()
   if (rules.invalidModuleCount > 0)
   {
     //Some modules are not yet valid
+  #ifndef TEST_FAKE_CELLS
     rules.SetError(InternalErrorCode::WaitingForModulesToReply);
+  #endif
   }
 
   if (_controller_state == ControllerState::Running && rules.zeroVoltageModuleCount > 0)
@@ -1142,7 +1161,11 @@ void ProcessRules()
   if (_controller_state == ControllerState::Stabilizing)
   {
     //Check for zero volt modules - not a problem whilst we are in stabilizing start up mode
+  #ifdef TEST_FAKE_CELLS
+    if (true)
+  #else
     if (rules.zeroVoltageModuleCount == 0 && rules.invalidModuleCount == 0)
+  #endif
     {
       //Every module has been read and they all returned a voltage move to running state
       SetControllerState(ControllerState::Running);
@@ -1201,11 +1224,13 @@ void rules_task(void *param)
 {
   for (;;)
   {
-    //3 seconds
-    vTaskDelay(pdMS_TO_TICKS(3000));
-
     //Run the rules
     ProcessRules();
+    
+        //3 seconds
+    vTaskDelay(pdMS_TO_TICKS(10000));
+
+
 
 #if defined(RULES_LOGGING)
     for (int8_t r = 0; r < RELAY_RULES; r++)
@@ -1366,7 +1391,7 @@ void connectToMqtt()
 
 
 // InfluxDB 2 server url, e.g. http://192.168.1.48:8086 (Use: InfluxDB UI -> Load Data -> Client Libraries)
-#define INFLUXDB_URL "https://us-central1-1.gcp.cloud2.influxdata.com"
+#define INFLUXDB_URL "https://us-central1-1.gcp.cloud2.influxdata.com:443"
 // InfluxDB 2 server or cloud API authentication token (Use: InfluxDB UI -> Load Data -> Tokens -> <select token>)
 #define INFLUXDB_TOKEN "T49oTVwIN0yQVku1Z7qJ-eFWZgXe3gu-KMBDxIoodSKr_DLuHZV_yc1WvOSbDvQpbUG8Xwu1puHMcm_t54PRuQ=="
 // InfluxDB 2 organization name or id (Use: InfluxDB UI -> Settings -> Profile -> <name under tile> )
@@ -1495,6 +1520,7 @@ void influxdb_task(void *param)
 
   ESP_LOGI("Starting influxdb_task");
   ESP_LOGI(TAG, "Setting up InfluxDB: ");
+  
 
   int httpCode = 0;
 
@@ -1504,11 +1530,12 @@ void influxdb_task(void *param)
     if (mysettings.influxdb_enabled && WiFi.isConnected())
     {
 
-      ESP_LOGI("Send Influxdb data");
+      String deviceName = "baja";
+      ESP_LOGI("Send Influxdb data - wifi mac" + deviceName);
 
       String influxClient = String(INFLUXDB_URL) + "/api/v2/write?org=" + urlEncode(INFLUXDB_ORG) + "&bucket=" + INFLUXDB_BUCKET + "&precision=s";
       String body;//= String("temperature value=") + cels + " " + ts + "\n" + "humidity value=" + hum + " " + ts + "\n" + "index value=" + hic + " " + ts + "\n" + "moisture value=" + moist + " " + ts + "\n" + "light value=" + light + " " + ts + "\n" + "height value=" + height + " " + ts;
-      body = body + "pack ";
+      body = body + "pack,board=" + deviceName + " ";
       body = body + "voltage=" + String(pi.voltage, 3) + ",";
       body = body + "current=" + String(pi.current / 1000.0, 3) + ",";
       body = body + "fullChargeCapacityAh=" + String(pi.fullChargeCapacityAh, 3) + ",";
@@ -1524,7 +1551,7 @@ void influxdb_task(void *param)
         //TODO: We should send a request per bank not just a single POST as we are likely to exceed capabilities of ESP
         for (uint8_t i = 0; i < mysettings.totalNumberOfSeriesModules; i++)
         {
-          body = body + "bms cell_" + String(i) + "_v=" + String(cmi[i].voltagemV / 1000.0, 3) + ",";
+          body = body + "bms,board=" + WiFi.macAddress() + " cell_" + String(i) + "_v=" + String(cmi[i].voltagemV / 1000.0, 3) + ",";
           body = body + "cell_" + String(i) + "_balance_mah=" + String(cmi[i].BalanceCurrentCount) + "\n";
           //sensor.addField("cell_" + String(i) + "_v", cmi[i].voltagemV / 1000.0, 3);
           //sensor.addField("cell_" + String(i) + "_balance_mah", cmi[i].BalanceCurrentCount);
@@ -1577,7 +1604,7 @@ void influxdb_task(void *param)
 #endif
 
     }
-    vTaskDelay(pdMS_TO_TICKS(30000));
+    vTaskDelay(pdMS_TO_TICKS(120000));
 
   }
 }
@@ -2318,6 +2345,7 @@ void dumpByte(uint8_t data)
   SERIAL_DEBUG.print(data, HEX);
 }
 
+#ifdef MODEL
 void cell_modem_task(void *param)
 {
   cell_modem.init();
@@ -2327,26 +2355,34 @@ void cell_modem_task(void *param)
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
+#endif
 
 void setup()
 {
-  WiFi.mode(WIFI_OFF);
+  const char *diybms_logo = "\r\n\r\n\r\n                _          __ \r\n    _|  o      |_)  |\\/|  (_  \r\n   (_|  |  \\/  |_)  |  |  __) \r\n           /                  ";
+  // Ensure no race conditions on startup in case CAN sends zero soc = motor stop
+  pi.soc = 25.0;
+
+  //ESP32 we use the USB serial interface for console/debug messages
+  SERIAL_DEBUG.begin(115200, SERIAL_8N1);
+  SERIAL_DEBUG.setDebugOutput(true);
+
+
+  SERIAL_DEBUG.println(diybms_logo);
+
+  ESP_LOGI(TAG, "CONTROLLER - ver:%s compiled %s", GIT_VERSION, COMPILE_DATE_TIME);
+  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   btStop();
   esp_log_level_set("*", ESP_LOG_DEBUG);    // set all components to WARN level
   esp_log_level_set("wifi", ESP_LOG_WARN);  // enable WARN logs from WiFi stack
   esp_log_level_set("dhcpc", ESP_LOG_WARN); // enable INFO logs from DHCP client
 
-  const char *diybms_logo = "\r\n\r\n\r\n                _          __ \r\n    _|  o      |_)  |\\/|  (_  \r\n   (_|  |  \\/  |_)  |  |  __) \r\n           /                  ";
 
-  //ESP32 we use the USB serial interface for console/debug messages
-  SERIAL_DEBUG.begin(115200, SERIAL_8N1);
-  SERIAL_DEBUG.setDebugOutput(true);
 
-  SERIAL_DEBUG.println(diybms_logo);
+  // Turn on WIFI
+  WiFi.mode(WIFI_OFF);
 
-  ESP_LOGI(TAG, "CONTROLLER - ver:%s compiled %s", GIT_VERSION, COMPILE_DATE_TIME);
-  ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
@@ -2361,6 +2397,15 @@ void setup()
   hal.ConfigureI2C(TCA6408Interrupt, TCA9534AInterrupt);
   hal.ConfigureVSPI();
   ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
+
+  // Turn on power management
+  axp.begin(kMBusModeInput);
+  //axp->SetLDOEnable(3,true);   //Open the vibration.   开启震动马达
+  //delay(1000);
+  axp.SetLDOEnable(3,false); 
+  axp.SetSpkEnable(true);
+  speaker.begin();
+  speaker.beep();
 
   // Start CAN
   can->begin();
@@ -2407,7 +2452,8 @@ void setup()
   queue_i2c = xQueueCreate(10, sizeof(i2cQueueMessage));
 
   //Create i2c task on CPU 0 (normal code runs on CPU 1)
-  xTaskCreatePinnedToCore(i2c_task, "i2c", 2048, nullptr, configMAX_PRIORITIES - 1, &i2c_task_handle, 0);
+  //xTaskCreatePinnedToCore(i2c_task, "i2c", 2048, nullptr, configMAX_PRIORITIES - 1, &i2c_task_handle, 0);
+  xTaskCreatePinnedToCore(i2c_task, "i2c", 4096, nullptr, configMAX_PRIORITIES - 1, &i2c_task_handle, 0);
   //xTaskCreatePinnedToCore(ledoff_task, "ledoff", 1048, nullptr, 1, &ledoff_task_handle, 0);
   ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
@@ -2451,7 +2497,10 @@ void setup()
   {
     DIYBMSServer::clearModuleValues(i);
   }
-  pi.soc = 50;
+  
+  float first_soc = bqz.state_of_charge();
+  pi.soc = first_soc < 25.0 ? 25.0 : first_soc;
+
   ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   resetAllRules();
@@ -2558,7 +2607,7 @@ void setup()
   }
 
   //SDM sdm(SERIAL_RS485, 9600, RS485_ENABLE, SERIAL_8N1, RS485_RX, RS485_TX); // pins for DIYBMS => RX pin 21, TX pin 22
-  SERIAL_RS485.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
+  //SERIAL_RS485.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
 }
 
 unsigned long wifitimer = 0;

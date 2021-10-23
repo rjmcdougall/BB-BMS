@@ -9,6 +9,8 @@
 #include "bq76952.h"
 static const char *TAG = "bq76952";
 
+
+
 // Library config
 //#define DBG_BAUD            115200
 //#define BQ_I2C_ADDR_WRITE   0x10
@@ -152,7 +154,7 @@ unsigned int bq76952::directCommand(uint8_t command) {
   uint8_t value[2];
   uint8_t return_value;
 
-  int ret = BQhal->directCommand(I2C_NUM_0, BQaddr, command, &value[0]);
+  int ret = BQhal->directCommand(port, BQaddr, command, &value[0]);
   return_value = value[0] | (value[1] << 8);
   ESP_LOGD(TAG,"directCommand Reply %x %i", return_value, ret);
   vTaskDelay(pdMS_TO_TICKS(10));
@@ -168,11 +170,11 @@ unsigned int bq76952::directCommand(uint8_t command)
     uint32_t return_value;
 
     ESP_LOGD(TAG,"directCommand Send cmd %i", command);
-    //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(I2C_NUM_0, BQaddr, command, &value[0], 2));
-    //ret = BQhal->readByte(I2C_NUM_0, BQaddr, command, &return_value);
-    ret = BQhal->readByte(I2C_NUM_0, BQaddr, command, &value[0]);
-    ret = ret + BQhal->readByte(I2C_NUM_0, BQaddr, command + 1, &value[1]);
-    //ret = BQhal->readMultipleBytes(I2C_NUM_0, BQaddr, command, (uint8_t *)&return_value, 2);
+    //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(port, BQaddr, command, &value[0], 2));
+    //ret = BQhal->readByte(port, BQaddr, command, &return_value);
+    ret = BQhal->readByte(port, BQaddr, command, &value[0]);
+    ret = ret + BQhal->readByte(port, BQaddr, command + 1, &value[1]);
+    //ret = BQhal->readMultipleBytes(port, BQaddr, command, (uint8_t *)&return_value, 2);
     return_value = value[0] | (value[1] << 8);
     ESP_LOGD(TAG,"directCommand Reply %i", ret);
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -186,12 +188,12 @@ bool bq76952::read16(uint8_t reg, unsigned int *value)
     uint8_t tmp_value[2];
 
     //ESP_LOGD(TAG,"read16 Send cmd %i", reg);
-    //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(I2C_NUM_0, BQaddr, command, &value[0], 2));
-    ret = BQhal->readByte(I2C_NUM_0, BQaddr, reg, &tmp_value[0]);
+    //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(port, BQaddr, command, &value[0], 2));
+    ret = BQhal->readByte(port, BQaddr, reg, &tmp_value[0]);
     if (ret != ESP_OK) {
         return false;
     }
-    ret = BQhal->readByte(I2C_NUM_0, BQaddr, reg + 1, &tmp_value[1]);
+    ret = BQhal->readByte(port, BQaddr, reg + 1, &tmp_value[1]);
     if (ret != ESP_OK) {
         return false;
     }
@@ -207,7 +209,7 @@ void bq76952::subCommand(uint16_t value)
     uint8_t cmd[2];
     cmd[0] = LOW_BYTE(value);
     cmd[1] = HIGH_BYTE(value);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_SUBCMD_LOW, cmd, 2));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(port, BQaddr, CMD_DIR_SUBCMD_LOW, cmd, 2));
     vTaskDelay(pdMS_TO_TICKS(10));
 }
 
@@ -217,7 +219,7 @@ uint16_t bq76952::subCommandResponseInt(void)
     int16_t ret;
 
     //ESP_LOGD(TAG,"BQsubCommandResponseInt Send");
-    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->readMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_RESP_START, &value[0], 2));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->readMultipleBytes(port, BQaddr, CMD_DIR_RESP_START, &value[0], 2));
     ret = value[0] | value[1] << 8;
     //ESP_LOGD(TAG,"BQsubCommandResponseInt Reply %i", ret);
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -231,7 +233,7 @@ bool bq76952::subCommandResponseBlock(uint8_t *data, uint16_t len)
 
     vTaskDelay(pdMS_TO_TICKS(10));
     //ESP_LOGD(TAG,"BQsubCommandResponseBlock Check len");
-    ret = BQhal->readByte(I2C_NUM_0, BQaddr, CMD_DIR_RESP_LEN, &ret_len);
+    ret = BQhal->readByte(port, BQaddr, CMD_DIR_RESP_LEN, &ret_len);
     //ESP_LOGD(TAG,"BQsubCommandResponseBlock Check len = %d, ret = %d", ret_len, ret);
     if (ret_len > 40) {
       ret_len = 40;
@@ -241,7 +243,7 @@ bool bq76952::subCommandResponseBlock(uint8_t *data, uint16_t len)
 
     vTaskDelay(pdMS_TO_TICKS(10));
     for (int i = 0; i < ret_len; i++) {
-      ret = BQhal->readByte(I2C_NUM_0, BQaddr, CMD_DIR_RESP_START + i, data + i);
+      ret = BQhal->readByte(port, BQaddr, CMD_DIR_RESP_START + i, data + i);
       vTaskDelay(pdMS_TO_TICKS(10));
       //ESP_LOGD(TAG,"BQsubCommandResponseBlock data %x", data[i]);
     }
@@ -281,12 +283,12 @@ void bq76952::writeDataMemory(int16_t addr, uint16_t value, uint8_t len)
     data[2] = LOW_BYTE(value);
     data[3] = HIGH_BYTE(value);
     ESP_LOGD(TAG,"BQwriteDataMemory Send data %x", value);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_SUBCMD_LOW, data, len + 2));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(port, BQaddr, CMD_DIR_SUBCMD_LOW, data, len + 2));
 
     data[0] = chksum;
     data[1] = 0x05;
     ESP_LOGD(TAG,"BQwriteDataMemory Send checksum %x", value);
-    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_RESP_CHKSUM, data, 2));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->writeMultipleBytes(port, BQaddr, CMD_DIR_RESP_CHKSUM, data, 2));
 
     exitConfigUpdate();
 }
@@ -298,20 +300,20 @@ bool bq76952::readDataMemory(uint16_t addr, uint8_t *data)
     data[0] = LOW_BYTE(addr);
     data[1] = HIGH_BYTE(addr);
 
-    esp_err_t ret = BQhal->writeMultipleBytes(I2C_NUM_0, BQaddr, CMD_DIR_SUBCMD_LOW, data, 2);
+    esp_err_t ret = BQhal->writeMultipleBytes(port, BQaddr, CMD_DIR_SUBCMD_LOW, data, 2);
     if (ret != ESP_OK) {
       //ESP_LOGD(TAG, "writecmd failed");
       return false;
     }
 
     ESP_LOGD(TAG,"BQreadDataMemory Send Read Req %i", addr);
-    ret = BQhal->readByte(I2C_NUM_0, BQaddr, CMD_DIR_RESP_START, data);
+    ret = BQhal->readByte(port, BQaddr, CMD_DIR_RESP_START, data);
     ESP_LOGD(TAG,"BQreadDataMemory Reply %x %i", *data, ret);
     return (ret == ESP_OK);
 }
 
 bool bq76952::isConnected(void) {
-  return BQhal->isConnected(I2C_NUM_0, BQaddr);
+  return BQhal->isConnected(port, BQaddr);
 }
 
 #ifdef OLD_BQ
@@ -441,10 +443,11 @@ byte bq76952::computeChecksum(byte oldChecksum, byte data) {
 
 /////// API FUNCTIONS ///////
 
-bq76952::bq76952(uint8_t addr, HAL_ESP32 *hal) {
+bq76952::bq76952(uint8_t addr, HAL_ESP32 *hal, i2c_port_t p) {
 	// Constructor
     BQhal = hal;
     BQaddr = addr;
+    port = p;
   //pinMode(alertPin, INPUT);
   // TODO - Attach IRQ here
 }

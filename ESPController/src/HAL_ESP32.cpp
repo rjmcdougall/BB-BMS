@@ -255,23 +255,16 @@ void HAL_ESP32::CANBUSEnable(bool value)
 // Control TFT backlight LED
 void HAL_ESP32::TFTScreenBacklight(bool value)
 {
-    //Clear LED pins
-    TCA9534APWR_Value = TCA9534APWR_Value & B11110111;
-
-    if (value == true)
-    {
-        //Set on
-        TCA9534APWR_Value = TCA9534APWR_Value | B00001000;
-    }
-
-    //esp_err_t ret =
-    // RMC ESP_ERROR_CHECK_WITHOUT_ABORT(writeByte(I2C_NUM_0, TCA9534APWR_ADDRESS, TCA9534APWR_OUTPUT, TCA9534APWR_Value));
-    //TODO: Check return value
-    //ESP_LOGD(TAG,"TCA9534 reply %i",ret);
+  // M5
+  //ledcWrite(M5_BLK_PWM_CHANNEL, value ? 100 : 0);
 }
 
 void HAL_ESP32::ConfigurePins(void (*WiFiPasswordResetInterrupt)(void))
 {
+    // M5: Init the back-light LED PWM
+    //ledcSetup(M5_BLK_PWM_CHANNEL, 44100, 8);
+    //ledcAttachPin(TFT_BL, M5_BLK_PWM_CHANNEL);
+
     //GPIO39 is interrupt pin from TCA6408 (doesnt have pull up/down resistors)
     //pinMode(TCA6408_INTERRUPT_PIN, INPUT);
 
@@ -288,7 +281,7 @@ void HAL_ESP32::ConfigurePins(void (*WiFiPasswordResetInterrupt)(void))
     attachInterrupt(GPIO_NUM_0, WiFiPasswordResetInterrupt, CHANGE);
 
     //For touch screen
-    pinMode(GPIO_NUM_36, INPUT_PULLUP);
+    //pinMode(GPIO_NUM_36, INPUT_PULLUP);
     //attachInterrupt(GPIO_NUM_36, TFTScreenTouch, FALLING);
 
     // Baja Pins
@@ -298,8 +291,8 @@ void HAL_ESP32::ConfigurePins(void (*WiFiPasswordResetInterrupt)(void))
     //digitalWrite(BAJA_TAILLIGHT_PIN, HIGH);
 
     //Configure the CHIP SELECT pins as OUTPUT and set HIGH
-    pinMode(TOUCH_CHIPSELECT, OUTPUT);
-    digitalWrite(TOUCH_CHIPSELECT, HIGH);
+    //pinMode(TOUCH_CHIPSELECT, OUTPUT);
+    //digitalWrite(TOUCH_CHIPSELECT, HIGH);
     //pinMode(SDCARD_CHIPSELECT, OUTPUT);
     //digitalWrite(SDCARD_CHIPSELECT, HIGH);
 
@@ -319,7 +312,7 @@ void HAL_ESP32::SwapGPIO0ToOutput()
 
 void HAL_ESP32::ConfigureI2C(void (*TCA6408Interrupt)(void), void (*TCA9534AInterrupt)(void))
 {
-    ESP_LOGI(TAG, "Configure I2C");
+    ESP_LOGI(TAG, "Configure I2C0");
 
     //SDA / SCL
     //ESP32 = I2C0-SDA / I2C0-SCL
@@ -342,9 +335,41 @@ void HAL_ESP32::ConfigureI2C(void (*TCA6408Interrupt)(void), void (*TCA9534AInte
 
     i2c_set_pin(I2C_NUM_0, gpio_num_t::GPIO_NUM_21, gpio_num_t::GPIO_NUM_22,  GPIO_PULLUP_ENABLE,GPIO_PULLUP_ENABLE, I2C_MODE_MASTER);
 
-    ESP_LOGD(TAG,"I2C i2c_param_config %i",ret);
+    ESP_LOGD(TAG,"I2C0 i2c_param_config %i",ret);
     ret = i2c_driver_install(I2C_NUM_0, conf.mode, 0, 0, 0);
-    ESP_LOGD(TAG,"I2C i2c_driver_install %i",ret);
+    ESP_LOGD(TAG,"I2C0 i2c_driver_install %i",ret);
+
+
+
+    ESP_LOGI(TAG, "Configure I2C1");
+
+    //SDA / SCL
+    //ESP32 = I2C0-SDA / I2C0-SCL
+    //I2C Bus 1: uses GPIO 27 (SDA) and GPIO 26 (SCL);
+    //I2C Bus 2: uses GPIO 33 (SDA) and GPIO 32 (SCL);
+
+    // Initialize
+    //i2c_config_t conf;
+    conf.mode = I2C_MODE_MASTER;
+    // RMC conf.sda_io_num = gpio_num_t::GPIO_NUM_27;
+    // RMC conf.scl_io_num = gpio_num_t::GPIO_NUM_26;
+    conf.sda_io_num = gpio_num_t::GPIO_NUM_32;
+    conf.scl_io_num = gpio_num_t::GPIO_NUM_33;
+    //conf.sda_pullup_en = GPIO_PULLUP_DISABLE;
+    //conf.scl_pullup_en = GPIO_PULLUP_DISABLE;
+    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
+    conf.master.clk_speed = 10000;
+    ret = i2c_param_config(I2C_NUM_1, &conf);
+
+    i2c_set_pin(I2C_NUM_1, gpio_num_t::GPIO_NUM_32, gpio_num_t::GPIO_NUM_33,  GPIO_PULLUP_ENABLE,GPIO_PULLUP_ENABLE, I2C_MODE_MASTER);
+
+    ESP_LOGD(TAG,"I2C1 i2c_param_config %i",ret);
+    ret = i2c_driver_install(I2C_NUM_1, conf.mode, 0, 0, 0);
+    ESP_LOGD(TAG,"I2C1 i2c_driver_install %i",ret);
+
+
+    
 
 #ifdef RMC
     // https://datasheet.lcsc.com/szlcsc/1809041633_Texas-Instruments-TCA9534APWR_C206010.pdf
