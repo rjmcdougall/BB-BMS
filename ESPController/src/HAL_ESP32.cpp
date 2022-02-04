@@ -330,7 +330,8 @@ void HAL_ESP32::ConfigureI2C(void (*TCA6408Interrupt)(void), void (*TCA9534AInte
     //conf.scl_pullup_en = GPIO_PULLUP_DISABLE;
     conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
     conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.master.clk_speed = 10000;
+    conf.master.clk_speed = 400000;
+    conf.clk_flags = 0;
     esp_err_t ret = i2c_param_config(I2C_NUM_0, &conf);
 
     i2c_set_pin(I2C_NUM_0, gpio_num_t::GPIO_NUM_21, gpio_num_t::GPIO_NUM_22,  GPIO_PULLUP_ENABLE,GPIO_PULLUP_ENABLE, I2C_MODE_MASTER);
@@ -359,7 +360,8 @@ void HAL_ESP32::ConfigureI2C(void (*TCA6408Interrupt)(void), void (*TCA9534AInte
     //conf.scl_pullup_en = GPIO_PULLUP_DISABLE;
     conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
     conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.master.clk_speed = 10000;
+    conf.master.clk_speed = 20000;
+    conf.clk_flags = 0;
     ret = i2c_param_config(I2C_NUM_1, &conf);
 
     i2c_set_pin(I2C_NUM_1, gpio_num_t::GPIO_NUM_32, gpio_num_t::GPIO_NUM_33,  GPIO_PULLUP_ENABLE,GPIO_PULLUP_ENABLE, I2C_MODE_MASTER);

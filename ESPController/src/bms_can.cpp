@@ -106,7 +106,7 @@ void bms_can::initCAN()
 	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_5, gpio_num_t::GPIO_NUM_35, CAN_MODE_NORMAL);
 	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_13, gpio_num_t::GPIO_NUM_35, CAN_MODE_NORMAL);
 	//can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_13, gpio_num_t::GPIO_NUM_36, CAN_MODE_NORMAL);
-	can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_25, gpio_num_t::GPIO_NUM_36, CAN_MODE_NORMAL);
+	can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(gpio_num_t::GPIO_NUM_26, gpio_num_t::GPIO_NUM_36, CAN_MODE_NORMAL);
 	//g_config.mode = CAN_MODE_NORMAL;
 	can_timing_config_t t_config = CAN_TIMING_CONFIG_500KBITS();
 	//can_timing_config_t t_config = CAN_TIMING_CONFIG_50KBITS();

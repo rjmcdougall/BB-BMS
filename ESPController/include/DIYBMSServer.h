@@ -18,7 +18,7 @@
 #include "PacketReceiveProcessor.h"
 
 #include "FS.h"
-#include <LITTLEFS.h>
+#include <LittleFS.h>
 #include "SD.h"
 
 #include "HAL_ESP32.h"

@@ -38,7 +38,7 @@ https://creativecommons.org/licenses/by-nc-sa/2.0/uk/
 #include "settings.h"
 
 #include "FS.h"
-#include <LITTLEFS.h>
+#include <LittleFS.h>
 #include "SD.h"
 
 AsyncWebServer *DIYBMSServer::_myserver;
@@ -163,10 +163,10 @@ void DIYBMSServer::avrProgrammer(AsyncWebServerRequest *request)
 
   String manifestfilename = String("/avr/manifest.json");
 
-  if (LITTLEFS.exists(manifestfilename))
+  if (LittleFS.exists(manifestfilename))
   {
     StaticJsonDocument<3000> jsonmanifest;
-    File file = LITTLEFS.open(manifestfilename);
+    File file = LittleFS.open(manifestfilename);
     DeserializationError error = deserializeJson(jsonmanifest, file);
     if (error != DeserializationError::Ok)
     {
@@ -939,10 +939,10 @@ void DIYBMSServer::avrstorage(AsyncWebServerRequest *request)
   //See if we can open and process the AVR PROGRAMMER manifest file
   response->print("{\"avrprog\":");
   String manifest = String("/avr/manifest.json");
-  if (LITTLEFS.exists(manifest))
+  if (LittleFS.exists(manifest))
   {
     StaticJsonDocument<3000> doc;
-    File file = LITTLEFS.open(manifest);
+    File file = LittleFS.open(manifest);
     DeserializationError error = deserializeJson(doc, file);
     if (error)
     {
@@ -988,8 +988,8 @@ void DIYBMSServer::storage(AsyncWebServerRequest *request)
     info.usedkilobytes = 0;
   }
 
-  info.flash_totalkilobytes = LITTLEFS.totalBytes() / 1024;
-  info.flash_usedkilobytes = LITTLEFS.usedBytes() / 1024;
+  info.flash_totalkilobytes = LittleFS.totalBytes() / 1024;
+  info.flash_usedkilobytes = LittleFS.usedBytes() / 1024;
 
   AsyncResponseStream *response = request->beginResponseStream("application/json");
 
@@ -1018,7 +1018,7 @@ void DIYBMSServer::storage(AsyncWebServerRequest *request)
   PrintStreamComma(response, "\"used\":", info.flash_usedkilobytes);
 
   response->print("\"files\":[");
-  fileSystemListDirectory(response, LITTLEFS, "/", 0);
+  fileSystemListDirectory(response, LittleFS, "/", 0);
   response->print(']');
   response->print("}");
 
@@ -1110,7 +1110,7 @@ void DIYBMSServer::downloadFile(AsyncWebServerRequest *request)
     {
       // Process file from flash storage
       ESP_LOGI(TAG, "Download FLASH file %s", file.c_str());
-      request->send(LITTLEFS, file, "application/octet-stream", true, nullptr);
+      request->send(LittleFS, file, "application/octet-stream", true, nullptr);
       return;
     }
   }
