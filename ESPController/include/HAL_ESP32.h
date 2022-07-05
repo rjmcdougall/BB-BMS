@@ -10,6 +10,7 @@ PCB WITH RS485/CANBUS/TFT DISPLAY
 #include <SPI.h>
 #include <driver/dac.h>
 
+
 //#define GREEN_LED 2
 
 //0 is the BOOT button
@@ -18,6 +19,9 @@ PCB WITH RS485/CANBUS/TFT DISPLAY
 
 #ifndef HAL_ESP32_H_
 #define HAL_ESP32_H_
+
+
+
 
 #define BAJA_HEADLIGHT_PIN GPIO_NUM_13
 #define BAJA_TAILLIGHT_PIN GPIO_NUM_12
@@ -102,7 +106,7 @@ public:
         bool reply = (xSemaphoreTake(xVSPIMutex, (TickType_t)50 / portTICK_PERIOD_MS) == pdTRUE);
         if (!reply)
         {
-            ESP_LOGE(TAG, "Unable to get VSPI mutex");
+            //ESP_LOGE(TAG, "Unable to get VSPI mutex");
         }
         return reply;
     }
@@ -123,7 +127,7 @@ public:
         bool reply = (xSemaphoreTake(xDisplayMutex, (TickType_t)50 / portTICK_PERIOD_MS) == pdTRUE);
         if (!reply)
         {
-            ESP_LOGE(TAG, "Unable to get Display mutex");
+            //ESP_LOGE(TAG, "Unable to get Display mutex");
         }
         return reply;
     }
@@ -145,7 +149,7 @@ public:
         bool reply = (xSemaphoreTake(xi2cMutex, (TickType_t)50 / portTICK_PERIOD_MS) == pdTRUE);
         if (!reply)
         {
-            ESP_LOGE(TAG, "Unable to get I2C mutex");
+            //ESP_LOGE(TAG, "Unable to get I2C mutex");
         }
         return reply;
     }
@@ -264,7 +268,7 @@ public:
             //X also needs to be greater than zero
             reply.touched = reply.pressure > 135 && reply.X > 0;
 
-            ESP_LOGD(TAG, "Touch = touch=%i pressure=%u x=%u y=%u", reply.touched, reply.pressure, reply.X, reply.Y);
+            //ESP_LOGD(TAG, "Touch = touch=%i pressure=%u x=%u y=%u", reply.touched, reply.pressure, reply.X, reply.Y);
         }
 
         return reply;

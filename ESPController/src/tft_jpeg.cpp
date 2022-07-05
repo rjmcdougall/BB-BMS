@@ -4,6 +4,8 @@
 
 #include "tft_jpeg.h"
 
+#define USE_ESP_IDF_LOG 1
+static constexpr const char *  TAG = "tft";
 
 void drawArrayJpeg(TFT_eSPI *tft, const uint8_t array[], uint32_t  array_size, int xpos, int ypos) {
 

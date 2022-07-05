@@ -1,5 +1,9 @@
 #include "settings.h"
 
+
+#define USE_ESP_IDF_LOG 1
+static constexpr const char *  TAG = "settings";
+
 void Settings::WriteConfig(const char *tag, char *settings, int size)
 {
   ESP_LOGD(TAG, "WriteConfig %s", tag);

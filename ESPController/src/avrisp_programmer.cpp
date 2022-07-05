@@ -15,6 +15,9 @@ https://creativecommons.org/licenses/by-nc-sa/2.0/uk/
 #include "avrisp_programmer.h"
 #include <esp_task_wdt.h>
 
+#define USE_ESP_IDF_LOG 1
+static constexpr const char * const TAG = "avr_programmer";
+
 void AVRISP_PROGRAMMER::avr_reset_target(bool reset)
 {
     digitalWrite(_resetGPIO, ((reset && _resetActiveHigh) || (!reset && !_resetActiveHigh)) ? HIGH : LOW);

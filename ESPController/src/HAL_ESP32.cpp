@@ -1,6 +1,11 @@
 
 #include "defines.h"
 #include "HAL_ESP32.h"
+
+#define USE_ESP_IDF_LOG 1
+static constexpr const char *  TAG = "hal32";
+
+
 bool HAL_ESP32::isConnected(i2c_port_t i2c_num, uint8_t dev)
 {
     //We use the native i2c commands for ESP32 as the Arduino library
