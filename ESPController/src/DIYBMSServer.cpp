@@ -41,6 +41,10 @@ https://creativecommons.org/licenses/by-nc-sa/2.0/uk/
 #include <LittleFS.h>
 #include "SD.h"
 
+
+#define USE_ESP_IDF_LOG 1
+static constexpr const char *  TAG = "server";
+
 AsyncWebServer *DIYBMSServer::_myserver;
 String DIYBMSServer::UUIDString;
 

@@ -1,6 +1,9 @@
 
 #include "Rules.h"
 
+#define USE_ESP_IDF_LOG 1
+static constexpr const char * const TAG = "rules";
+
 void Rules::ClearValues()
 {
     //Array to hold the total voltage of each bank/pack (in millivolts)

@@ -35,7 +35,7 @@ static const char *TAG = "diybms";
 //#define MQTT_LOGGING
 
 #include "FS.h"
-#include <LITTLEFS.h>
+#include <LittleFS.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <SPI.h>
@@ -64,6 +64,10 @@ static const char *TAG = "diybms";
 #include "bms_can.h"
 #include "AXP192.h"
 #include "speaker.h"
+
+extern "C" {
+#include "sk6812.h"
+}
 
 //SDM sdm(SERIAL_RS485, 9600, RS485_ENABLE, SERIAL_8N1, RS485_RX, RS485_TX); // pins for DIYBMS => RX pin 21, TX pin 22
 
@@ -676,6 +680,9 @@ void i2c_task(void *param)
         pi.temperature_ic2 = bq.getInternalTemp();
         pi.temperature1 = bqz.temperature();
         ESP_LOGD(TAG, "bq internal temp = %f", pi.temperature_ic2);
+
+//        bq76952_temperature_t prot = getTemperatureStatus();
+        
 
         CellModuleInfo *cellptr;
         // BQ
@@ -1518,8 +1525,8 @@ void influxdb_task(void *param)
 {
 
 
-  ESP_LOGI("Starting influxdb_task");
-  ESP_LOGI(TAG, "Setting up InfluxDB: ");
+  //ESP_LOGI(TAG, "Starting influxdb_task");
+  //ESP_LOGI(TAG, "Setting up InfluxDB: ");
   
 
   int httpCode = 0;
@@ -1527,11 +1534,12 @@ void influxdb_task(void *param)
   for (;;)
   {
 
-    if (mysettings.influxdb_enabled && WiFi.isConnected())
+//    if (mysettings.influxdb_enabled && WiFi.isConnected())
+    if (WiFi.isConnected())
     {
 
-      String deviceName = "baja";
-      ESP_LOGI("Send Influxdb data - wifi mac" + deviceName);
+      String deviceName = "mule";
+      //ESP_LOGI("Send Influxdb data - wifi mac" + deviceName);
 
       String influxClient = String(INFLUXDB_URL) + "/api/v2/write?org=" + urlEncode(INFLUXDB_ORG) + "&bucket=" + INFLUXDB_BUCKET + "&precision=s";
       String body;//= String("temperature value=") + cels + " " + ts + "\n" + "humidity value=" + hum + " " + ts + "\n" + "index value=" + hic + " " + ts + "\n" + "moisture value=" + moist + " " + ts + "\n" + "light value=" + light + " " + ts + "\n" + "height value=" + height + " " + ts;
@@ -1551,7 +1559,7 @@ void influxdb_task(void *param)
         //TODO: We should send a request per bank not just a single POST as we are likely to exceed capabilities of ESP
         for (uint8_t i = 0; i < mysettings.totalNumberOfSeriesModules; i++)
         {
-          body = body + "bms,board=" + WiFi.macAddress() + " cell_" + String(i) + "_v=" + String(cmi[i].voltagemV / 1000.0, 3) + ",";
+          body = body + "bms,board=" + deviceName + " cell_" + String(i) + "_v=" + String(cmi[i].voltagemV / 1000.0, 3) + ",";
           body = body + "cell_" + String(i) + "_balance_mah=" + String(cmi[i].BalanceCurrentCount) + "\n";
           //sensor.addField("cell_" + String(i) + "_v", cmi[i].voltagemV / 1000.0, 3);
           //sensor.addField("cell_" + String(i) + "_balance_mah", cmi[i].BalanceCurrentCount);
@@ -1604,7 +1612,7 @@ void influxdb_task(void *param)
 #endif
 
     }
-    vTaskDelay(pdMS_TO_TICKS(120000));
+    vTaskDelay(pdMS_TO_TICKS(60000));
 
   }
 }
@@ -1949,14 +1957,14 @@ void onMqttConnect(bool sessionPresent)
 
 void LoadConfiguration()
 {
-  ESP_LOGI("Reading config");
+  //ESP_LOGI("Reading config");
   if (Settings::ReadConfig("diybms", (char *)&mysettings, sizeof(mysettings)))
   {
-    ESP_LOGI("Read config");
+    //ESP_LOGI("Read config");
     return;
   }
 
-  ESP_LOGI("Apply default config");
+  //ESP_LOGI("Apply default config");
 
   //Zero all the bytes
   memset(&mysettings, 0, sizeof(mysettings));
@@ -2357,11 +2365,62 @@ void cell_modem_task(void *param)
 }
 #endif
 
+pixel_settings_t px;
+
+void Sk6812_Init(void) {
+    px.pixel_count = 10;
+    px.brightness = 20;
+    sprintf(px.color_order, "GRBW");
+    px.nbits = 24;
+    px.timings.t0h = (350);
+    px.timings.t0l = (800);
+    px.timings.t1h = (600);
+    px.timings.t1l = (700);
+    px.timings.reset = 80000;
+    px.pixels = (uint8_t *)malloc((px.nbits / 8) * px.pixel_count);
+    neopixel_init(GPIO_NUM_25, RMT_CHANNEL_0);
+    np_clear(&px);
+}
+
+#define SK6812_SIDE_LEFT 0
+#define SK6812_SIDE_RIGHT 1
+
+void Sk6812_SetColor(uint16_t pos, uint32_t color) {
+    np_set_pixel_color(&px, pos, color << 8);
+}
+
+void Sk6812_SetSideColor(uint8_t side, uint32_t color) {
+    if (side == SK6812_SIDE_LEFT) {
+        for (uint8_t i = 5; i < 10; i++) {
+            np_set_pixel_color(&px, i, color << 8);
+        }
+    } else {
+        for (uint8_t i = 0; i < 5; i++) {
+            np_set_pixel_color(&px, i, color << 8);
+        }
+    }
+}
+
+void Sk6812_SetBrightness(uint8_t brightness) {
+    px.brightness = brightness;
+}
+
+void Sk6812_Show(void) {
+    np_show(&px, RMT_CHANNEL_0);
+}
+
+void Sk6812_Clear(void) {
+    np_clear(&px);
+}
+
+
 void setup()
 {
   const char *diybms_logo = "\r\n\r\n\r\n                _          __ \r\n    _|  o      |_)  |\\/|  (_  \r\n   (_|  |  \\/  |_)  |  |  __) \r\n           /                  ";
   // Ensure no race conditions on startup in case CAN sends zero soc = motor stop
-  pi.soc = 25.0;
+  pi.soc = 0;
+
+
 
   //ESP32 we use the USB serial interface for console/debug messages
   SERIAL_DEBUG.begin(115200, SERIAL_8N1);
@@ -2391,6 +2450,13 @@ void setup()
 
   //We generate a unique number which is used in all following JSON requests
   //we use this as a simple method to avoid cross site scripting attacks
+
+  Sk6812_Init();
+  Sk6812_Show(); 
+  Sk6812_SetSideColor(SK6812_SIDE_LEFT, 0x00ff00);
+  Sk6812_SetSideColor(SK6812_SIDE_RIGHT, 0xffffff);
+  Sk6812_Show(); 
+
   DIYBMSServer::generateUUID();
 
   hal.ConfigurePins(WifiPasswordClear);
@@ -2432,7 +2498,7 @@ void setup()
 
   //hal.Led(0);
 
-  if (!LITTLEFS.begin(false))
+  if (!LittleFS.begin(false))
   {
     ESP_LOGE(TAG, "LITTLEFS mount failed, did you upload file system image? - SYSTEM HALTED");
 
@@ -2440,7 +2506,7 @@ void setup()
   }
   else
   {
-    ESP_LOGI(TAG, "LITTLEFS mounted, totalBytes=%u, usedBytes=%u", LITTLEFS.totalBytes(), LITTLEFS.usedBytes());
+    ESP_LOGI(TAG, "LittleFS mounted, totalBytes=%u, usedBytes=%u", LittleFS.totalBytes(), LittleFS.usedBytes());
     //listDir(LITTLEFS, "/", 0);
   }
 
@@ -2570,8 +2636,8 @@ void setup()
     /* Explicitly set the ESP to be a WiFi-client, otherwise by default,
       would try to act as both a client and an access-point */
 
-    WiFi.onEvent(onWifiConnect, system_event_id_t::SYSTEM_EVENT_STA_GOT_IP);
-    WiFi.onEvent(onWifiDisconnect, system_event_id_t::SYSTEM_EVENT_STA_DISCONNECTED);
+    WiFi.onEvent(onWifiConnect, arduino_event_id_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
+    WiFi.onEvent(onWifiDisconnect, arduino_event_id_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
     //Newer IDF version will need this...
     //WiFi.onEvent(onWifiConnect, arduino_event_id_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
     //WiFi.onEvent(onWifiDisconnect, arduino_event_id_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);

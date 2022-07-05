@@ -47,6 +47,9 @@ ScreenTemplateToDisplay _lastScreenToDisplay = ScreenTemplateToDisplay::NotInsta
 int16_t fontHeight_2;
 int16_t fontHeight_4;
 
+#define USE_ESP_IDF_LOG 1
+static constexpr const char *  TAG = "tft";
+
 void IRAM_ATTR TFTScreenTouchInterrupt()
 {
     if (!_tft_screen_available)
@@ -230,7 +233,6 @@ void PrepareTFT_VoltageOneBank()
 
     drawArrayJpeg(&tft, file_batteryicon_jpg, size_file_batteryicon_jpg, 0, 0);
 
-
     int16_t w = tft.width();
     //Take off the wifi banner height
     int16_t h = tft.height() - fontHeight_2 - 100;
@@ -288,7 +290,7 @@ void init_tft_display()
     //gpio_pullup_en(GPIO_NUM_14);
     //gpio_set_pull_mode(GPIO_NUM_14, GPIO_PULLUP_ONLY);
 
-   // tft.setRotation(3);
+    // tft.setRotation(3);
     tft.setRotation(1);
 
     fontHeight_2 = tft.fontHeight(2);
@@ -509,7 +511,7 @@ void DrawTFT_VoltageFourBank()
 
     int16_t x = 0;
     int16_t y = fontHeight_2 + h + 2;
-/*
+    /*
     if (rules.moduleHasExternalTempSensor)
     {
         x += tft.drawNumber(rules.lowestExternalTemp, x, y);
@@ -547,6 +549,8 @@ void DrawTFT_VoltageFourBank()
     tft.fillRect(x, y, w - x, fontHeight_2, TFT_BLACK);
 }
 
+static int16_t last_soc_width = 999;
+
 void DrawTFT_VoltageOneBank()
 {
     ESP_LOGD(TAG, "OneBank");
@@ -560,18 +564,24 @@ void DrawTFT_VoltageOneBank()
 
     const int16_t xoffset = 32;
     const int16_t yoffset = 90;
-//    int16_t y = fontHeight_2;
+    //    int16_t y = fontHeight_2;
     int16_t y = yoffset;
     int16_t x = tft.width() / 2;
     //float value = rules.packvoltage[0] / 1000.0;
 
     //rules.soc = 60;
     int16_t x_width = rules.soc * 262 / 100;
-    //x += tft.drawFloat(value, 2, x, y);
-    //x += tft.drawNumber(value, x, y);
-    //x += tft.drawString("%%", x, y);
-    //Clear right hand side of display
-    tft.fillRect(20 + x_width, 6, 262 - x_width, 68, TFT_BLACK);
+    if (x_width != last_soc_width)
+    {
+        //x += tft.drawFloat(value, 2, x, y);
+        //x += tft.drawNumber(value, x, y);
+        //x += tft.drawString("%%", x, y);
+        //Clear right hand side of display
+        drawArrayJpeg(&tft, file_batteryicon_jpg, size_file_batteryicon_jpg, 0, 0);
+        //tft.fillRect(20, 6, x_width, 68, TFT_GREEN);
+        tft.fillRect(20 + x_width, 6, 262 - x_width, 68, TFT_BLACK);
+    }
+    last_soc_width = x_width;
 
     //Top left
     tft.setTextDatum(TL_DATUM);
@@ -610,7 +620,7 @@ void DrawTFT_VoltageOneBank()
     //Cell voltage ranges
     y = h + fontHeight_4 + fontHeight_2 + fontHeight_2 + 2;
     x = xoffset + 0;
-    value = rules.highestCellVoltage  - rules.lowestCellVoltage;
+    value = rules.highestCellVoltage - rules.lowestCellVoltage;
     x += tft.drawNumber(value, x, y);
     x += tft.drawString("mV ", x, y);
     //blank out gap between numbers
@@ -764,7 +774,7 @@ void updatetftdisplay_task(void *param)
 
         ESP_LOGD(TAG, "updatetftdisplay_task _screen_awake?");
 
-        if (_tft_screen_available)// && _screen_awake)
+        if (_tft_screen_available) // && _screen_awake)
         {
             ESP_LOGD(TAG, "updatetftdisplay_task do something");
 
@@ -804,7 +814,6 @@ void updatetftdisplay_task(void *param)
                     }
                     hal.ReleaseDisplayMutex();
                     ESP_LOGD(TAG, "updatetftdisplay_task loop end %d", screenToDisplay);
-
                 }
                 _lastScreenToDisplay = screenToDisplay;
             }
@@ -842,6 +851,3 @@ void updatetftdisplay_task(void *param)
         }
     } //end for
 }
-
-
-

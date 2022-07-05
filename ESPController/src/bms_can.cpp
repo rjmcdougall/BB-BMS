@@ -3,6 +3,10 @@
 #include "crc16.h"
 #include "buffer.h"
 
+
+#define USE_ESP_IDF_LOG 1
+static constexpr const char *  TAG = "bms_can";
+
 #define CAN_DEBUG 1
 
 bms_can::bms_can(diybms_eeprom_settings *s, CellModuleInfo *c, PackInfo *p)
@@ -795,36 +799,36 @@ void bms_can::can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len)
 		uint32_t alerts = 0;
 		ESP_LOGI(TAG, "CAN reading alerts");
 		can_read_alerts(&alerts, pdMS_TO_TICKS(1000));
-		ESP_LOGI(tag, "---Alert Read: -- : %04x", alerts);
+		ESP_LOGI(TAG, "---Alert Read: -- : %04x", alerts);
 
 		if (alerts & CAN_ALERT_RECOVERY_IN_PROGRESS)
 		{
-			ESP_LOGI(tag, "Recovery in progress");
+			ESP_LOGI(TAG, "Recovery in progress");
 		}
 
 		if (alerts & CAN_ALERT_ABOVE_ERR_WARN)
 		{
-			ESP_LOGI(tag, "Surpassed Error Warning Limit");
+			ESP_LOGI(TAG, "Surpassed Error Warning Limit");
 		}
 
 		if (alerts & CAN_ALERT_ERR_PASS)
 		{
-			ESP_LOGI(tag, "Entered Error Passive state");
+			ESP_LOGI(TAG, "Entered Error Passive state");
 		}
 
 		if (alerts & CAN_ALERT_ERR_ACTIVE)
 		{
-			ESP_LOGI(tag, "Entered Can Error Active");
+			ESP_LOGI(TAG, "Entered Can Error Active");
 		}
 
 		if (alerts & CAN_ALERT_BUS_ERROR)
 		{
-			ESP_LOGI(tag, "Entered Alert Bus Error");
+			ESP_LOGI(TAG, "Entered Alert Bus Error");
 		}
 
 		if (alerts & CAN_ALERT_BUS_OFF)
 		{
-			ESP_LOGE(tag, "Bus Off --> Initiate bus recovery");
+			ESP_LOGE(TAG, "Bus Off --> Initiate bus recovery");
 			can_initiate_recovery(); //Needs 128 occurrences of bus free signal
 		}
 
@@ -841,7 +845,7 @@ void bms_can::can_transmit_eid(uint32_t id, const uint8_t *data, uint8_t len)
 
 			// only for testing. Does not help !!
 			//esp_err_t res = can_reconfigure_alerts(alerts_enabled, NULL);
-			ESP_LOGI(tag, "Bus Recovered"); // %d--> restarting Can", res);
+			ESP_LOGI(TAG, "Bus Recovered"); // %d--> restarting Can", res);
 
 			enable_alerts();
 

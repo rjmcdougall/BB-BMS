@@ -6,6 +6,10 @@
 		{
 			"name": "ttgo-tbeam-hw",
 			"path": "../../ttgo-tbeam-hw"
+		},
+		{
+			"name": "BMS Masterv2",
+			"path": "../../BMS Masterv2"
 		}
 	],
 	"settings": {}

@@ -3,6 +3,8 @@
 // From https://github.com/m5stack/M5Core2/tree/master/src
 
 
+#define USE_ESP_IDF_LOG 1
+static constexpr const char *  TAG = "axp";
 
 AXP192::AXP192(HAL_ESP32 *hal)
 {
