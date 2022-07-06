@@ -18,6 +18,9 @@
 
 //#define CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN 8192aa
 
+#define BQ_SIMULATION_MODE true
+
+
 #if defined(ESP8266)
 #error ESP8266 is not supported by this code
 #endif
@@ -59,7 +62,6 @@ static const char *TAG = "diybms";
 
 #include "defines.h"
 #include "HAL_ESP32.h"
-#include "bq76952.h"
 #include "bq34z100.h"
 #include "bms_can.h"
 #include "AXP192.h"
@@ -82,8 +84,17 @@ extern "C" {
 
 HAL_ESP32 hal;
 
-AXP192 axp = AXP192(&hal);
+#if BQ_SIMULATION_MODE
+#include "bq_simulator.h"
+// Skips some checks on modules looking for an actual battery
+#define TEST_FAKE_CELLS true
+bq_simulator bq = bq_simulator(BQ_ADDR, &hal, I2C_NUM_1);
+#else 
+#include "bq76952.h"
 bq76952 bq = bq76952(BQ_ADDR, &hal, I2C_NUM_1);
+#endif
+
+AXP192 axp = AXP192(&hal);
 bq34z100 bqz = bq34z100(BQZ_ADDR, &hal, I2C_NUM_1);
 bms_can *can = new bms_can(&mysettings, &cmi[0], &pi);
 SPEAKER speaker = SPEAKER(&axp);
@@ -2474,7 +2485,8 @@ void setup()
   speaker.beep();
 
   // Start CAN
-  can->begin();
+  // XXX re-enable
+  //can->begin();
   ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
   //See if we can get a sensible reading from the TFT touch chip XPT2046
@@ -2519,6 +2531,7 @@ void setup()
 
   //Create i2c task on CPU 0 (normal code runs on CPU 1)
   //xTaskCreatePinnedToCore(i2c_task, "i2c", 2048, nullptr, configMAX_PRIORITIES - 1, &i2c_task_handle, 0);
+  // XXX re-enable
   xTaskCreatePinnedToCore(i2c_task, "i2c", 4096, nullptr, configMAX_PRIORITIES - 1, &i2c_task_handle, 0);
   //xTaskCreatePinnedToCore(ledoff_task, "ledoff", 1048, nullptr, 1, &ledoff_task_handle, 0);
   ESP_LOGI(TAG, "free heap: %d", heap_caps_get_free_size(MALLOC_CAP_8BIT));
