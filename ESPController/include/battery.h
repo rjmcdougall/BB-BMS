@@ -25,12 +25,20 @@ public:
      * object stored in the static field.
      */
     static battery *GetInstance(hardware_interface *hwi);
+    bool direct_command(uint8_t command, unsigned int *value);
+    void sub_command(uint16_t command);
+    bool read_sub_command_response_block(unsigned int *data);
 
     /********************************************************************
      * Battery information methods
      ********************************************************************/
     unsigned int get_cell_voltage(byte cellNumber);
-
+    float get_internal_temp(void);
+    bool is_charging(void);
+    bool is_discharging(void);
+    float min_cell_temp();
+    float max_cell_temp();
+    
 private:
     void init(void);
     static void battery_task(void *param);
@@ -40,7 +48,18 @@ private:
     static std::mutex mutex_;
     static TaskHandle_t battery_task_handle;
     static hardware_interface *bq_hwi;
-	
+
+    // Cache for multi-byte subcommands
+    // '64' is cargo culted over from the original code.
+    unsigned int _dastatus5_cache[64];    
+
+    /********************************************************************
+     * Battery information methods
+     ********************************************************************/
+    bool _fet_status(int reg);
+    bool _update_dastatus5_cache(void);
+    float milli_kelvin_to_c(float mk);
+
 protected:
     battery(hardware_interface *hwi);
     ~battery();
