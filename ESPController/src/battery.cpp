@@ -29,6 +29,11 @@
 #define CMD_DIR_CC2_CUR           0x3A
 #define CMD_DIR_FET_STAT          0x7F
 
+// Voltage direct commands
+#define CMD_READ_VOLTAGE_STACK    0x34
+#define CMD_READ_VOLTAGE_PACK     0x36
+
+
 /********************************************************************
  * Direct Command CMD_DIR_FET_STAT returns a register with states
  * turned on or off. Below is the table:
@@ -126,6 +131,8 @@ Bit Field Description
  ********************************************************************/
 
 // Inline functions
+// Table 4-1. Commands to Read 16-Bit Voltage Measurements
+// The offset for cell addresses is 0x14, as per the table above ^
 #define CELL_NO_TO_ADDR(cellNo) (0x14 + ((cellNo-1)*2))
 
 static const char *TAG = "battery";
@@ -266,6 +273,28 @@ float battery::min_cell_temp(void) {
     return this->milli_kelvin_to_c(_dastatus5_cache[DASTATUS_TEMPCELLMIN] | (_dastatus5_cache[DASTATUS_TEMPCELLMIN + 1] << 8));
 }
 
+
+// Stack & Pack Voltage
+// XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
+// Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 1073432620
+unsigned int battery::get_stack_voltage(void) {
+    unsigned int voltage;
+    if( battery_->direct_command(CMD_READ_VOLTAGE_STACK, &voltage) ) {
+        return voltage;
+    } else {
+        return 0;
+    }        
+}
+
+unsigned int battery::get_pack_voltage(void) {
+    unsigned int voltage;
+    if( battery_->direct_command(CMD_READ_VOLTAGE_PACK, &voltage) ) {
+        return voltage;
+    } else {
+        return 0;
+    }        
+}
+
 /********************************************************************
 *
 * Task Runner
@@ -295,6 +324,10 @@ void battery::battery_task(void *param) {
 
             ESP_LOGD(TAG, "Voltage for cell %i: %i", i, v);
         }
+
+        // XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
+        // Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 1073432620
+        ESP_LOGD(TAG, "Stack Voltage: %i - Pack Voltage: %i", battery_->get_stack_voltage(), battery_->get_pack_voltage());
         
         bool charging = battery_->is_charging();
         bool discharging = battery_->is_discharging();
@@ -341,7 +374,6 @@ void battery::sub_command(uint16_t command) {
     this->bq_hwi->write(CMD_DIR_SUBCMD_LOW, cmd, 2);
 }
 
-
 bool battery::read_sub_command_response_block(unsigned int *data) {
     bool ret;
     unsigned int ret_len;
@@ -358,7 +390,7 @@ bool battery::read_sub_command_response_block(unsigned int *data) {
     // get the response in the registers
     for( int i = 0; i < ret_len; i++ ) {
         ret = this->bq_hwi->read_delayed( CMD_DIR_SUBCMD_RESP_START + i, data + i );
-        ESP_LOGD(TAG, "  Byte: %i - Data: %i", i, data[i]);
+        //ESP_LOGD(TAG, "  Byte: %i - Data: %i", i, data[i]);
     }
 
     //ESP_LOGD(TAG, "SubCommand RV: %i", ret);

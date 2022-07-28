@@ -38,6 +38,8 @@ public:
     bool is_discharging(void);
     float min_cell_temp();
     float max_cell_temp();
+    unsigned int get_stack_voltage(void);
+    unsigned int get_pack_voltage(void);
     
 private:
     void init(void);
