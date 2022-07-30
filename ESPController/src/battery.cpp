@@ -67,41 +67,6 @@ Bit Field Description
 #define BATTERY_DISCHARGING_BIT 0x04
 
 /********************************************************************
- * Subcommands are additional commands that are accessed indirectly using
- * the 7-bit command address space and provide the capability for block data 
- * transfers. When a subcommand is initiated, a 16-bit subcommand address is 
- * first written to the 7-bit command addresses 0x3E (lower byte) and 0x3F 
- * (upper byte). The device initially assumes a read-back of data may be needed, 
- * and auto-populates existing data into the 32-byte transfer buffer (which 
- * uses 7-bit command addresses 0x40–0x5F), and writes the checksum for this 
- * data into address 0x60.
- * 
- *  Manual section 4.5 describes all subcommands available.
- *  Table 12-23. Subcommands Table lists all subcommand codes
- ********************************************************************/
-
-// Note this works LIKE a direct command, but is described in section 4.5,
-// and NOT listed in the direct commands list. 
-
-// These are the relevant addresses for sub commands:
-#define CMD_DIR_SUBCMD_LOW              0x3E
-#define CMD_DIR_SUBCMD_HI               0x3F
-#define CMD_DIR_SUBCMD_RESP_START       0x40
-#define CMD_DIR_SUBCMD_RESP_CHKSUM      0x60
-#define CMD_DIR_SUBCMD_RESP_LEN         0x61
-
-// 32-byte buffer + 8 byte checksum. Should never be over 40 no matter what
-// the hardware says.
-#define SUBCMD_MAX_RESP_LEN 40
-
-/********************************************************************
- * 
- * These functions let us grab the subcommand low & high byte easily
- ********************************************************************/
-#define LOW_BYTE(data) (byte)(data & 0x00FF)
-#define HIGH_BYTE(data) (byte)((data >> 8) & 0x00FF)
-
-/********************************************************************
  * We currently use one SubCommand, DASTATUS5, which gives details on 
  * current and temperature in our battery cells. 
  * 
@@ -138,12 +103,8 @@ Bit Field Description
 static const char *TAG = "battery";
 
 static const int TASK_SIZE = TASK_STACK_SIZE_LARGE;
-static const int TASK_INTERVAL = 1000; // ms
+static const int TASK_INTERVAL = 10000; // ms
 static const float KELVIN_TO_CELSIUS = 273.15;
-
-
-
-
 
 
 /*
@@ -156,7 +117,7 @@ static unsigned int cell_voltage[CELL_COUNT];
 
 
 TaskHandle_t battery::battery_task_handle = NULL;
-hardware_interface *battery::bq_hwi;
+hardware_interface *battery::hwi;
 
 battery* battery::battery_{nullptr};
 std::mutex battery::mutex_;
@@ -176,14 +137,14 @@ unsigned int _dastatus5_cache[64] = {0};
  *      and then we make sure again that the variable is null and then we
  *      set the value. RU:
  */
- battery *battery::GetInstance(hardware_interface *hwi) {
+ battery *battery::GetInstance(hardware_interface *bq_hwi) {
     std::lock_guard<std::mutex> lock(battery::mutex_);
     
     // No instance yet - create one
     if( battery_ == nullptr ) {
         ESP_LOGD(TAG, "Creating new instance");
         
-        battery_ = new battery(hwi);
+        battery_ = new battery(bq_hwi);
         battery_->init();
 
     } else {
@@ -194,12 +155,12 @@ unsigned int _dastatus5_cache[64] = {0};
 }
 
 // Private
-battery::battery(hardware_interface *hwi) {
-    bq_hwi = hwi;
+battery::battery(hardware_interface *bq_hwi) {
+    hwi = bq_hwi;
 }
 
 void battery::init(void) {
-    ESP_LOGD(TAG, "Battery connected: %s", this->bq_hwi->isConnected() ? "true" : "false");
+    ESP_LOGD(TAG, "Battery connected: %s", this->hwi->is_connected() ? "true" : "false");
 }
 
 /********************************************************************
@@ -211,7 +172,7 @@ void battery::init(void) {
 // Read single cell voltage
 unsigned int battery::get_cell_voltage(byte cellNumber) {
     unsigned int value;
-    if (battery_->direct_command(CELL_NO_TO_ADDR(cellNumber), &value)) {
+    if (battery_->hwi->direct_command(CELL_NO_TO_ADDR(cellNumber), &value)) {
         return value;
     } else {
         return 0;
@@ -222,7 +183,7 @@ unsigned int battery::get_cell_voltage(byte cellNumber) {
 float battery::get_internal_temp(void) {
     unsigned int value;
     // This is returned in mKelvin: 
-    if (battery_->direct_command(CMD_DIR_INT_TEMP, &value)) {
+    if (battery_->hwi->direct_command(CMD_DIR_INT_TEMP, &value)) {
         return milli_kelvin_to_c(value);
     } else {
         return 0;
@@ -232,7 +193,7 @@ float battery::get_internal_temp(void) {
 /* FET Status Methods */
 bool battery::_fet_status(int reg){
     unsigned int value;
-    if (battery_->direct_command(CMD_DIR_FET_STAT, &value)) {
+    if (battery_->hwi->direct_command(CMD_DIR_FET_STAT, &value)) {
         ESP_LOGD(TAG, "FET Status: %i - Checking for bit set: %i", value, reg);
         return (value & reg);
     } else {
@@ -262,8 +223,8 @@ bool battery::is_discharging(void) {
 // Individual cell data is returned by dastatus5
 
 bool battery::_update_dastatus5_cache(void){
-    this->sub_command(CMD_DASTATUS5);
-    return this->read_sub_command_response_block(&_dastatus5_cache[0]);
+    this->hwi->sub_command(CMD_DASTATUS5);
+    return this->hwi->read_sub_command_response_block(&_dastatus5_cache[0]);
 }
 
 float battery::max_cell_temp(void) {
@@ -279,7 +240,7 @@ float battery::min_cell_temp(void) {
 // Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 1073432620
 unsigned int battery::get_stack_voltage(void) {
     unsigned int voltage;
-    if( battery_->direct_command(CMD_READ_VOLTAGE_STACK, &voltage) ) {
+    if( battery_->hwi->direct_command(CMD_READ_VOLTAGE_STACK, &voltage) ) {
         return voltage;
     } else {
         return 0;
@@ -288,7 +249,7 @@ unsigned int battery::get_stack_voltage(void) {
 
 unsigned int battery::get_pack_voltage(void) {
     unsigned int voltage;
-    if( battery_->direct_command(CMD_READ_VOLTAGE_PACK, &voltage) ) {
+    if( battery_->hwi->direct_command(CMD_READ_VOLTAGE_PACK, &voltage) ) {
         return voltage;
     } else {
         return 0;
@@ -312,10 +273,12 @@ void battery::battery_task(void *param) {
     }        
 
     for(;;) {
-        // XXX Can we just wrap this???
+
+
+        // // XXX Can we just wrap this???
         if( DEBUG_TASKS ) {
             uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
-            ESP_LOGD(TAG, "Current HWM/Stack = %i/%i - Connected: %s", uxHighWaterMark, TASK_SIZE, battery_->bq_hwi->isConnected() ? "true" : "false");
+            ESP_LOGD(TAG, "Current HWM/Stack = %i/%i - Connected: %s", uxHighWaterMark, TASK_SIZE, battery_->hwi->is_connected() ? "true" : "false");
         }
 
         for( int i = 0; i < CELL_COUNT; ++i ) {
@@ -348,54 +311,6 @@ void battery::battery_task(void *param) {
 void battery::run(void) {
     // How tasks work: https://www.freertos.org/a00125.html
     xTaskCreate(battery::battery_task, TAG, TASK_SIZE, nullptr, TASK_DEFAULT_PRIORITY, &battery_task_handle);       
-}
-
-
-
-/********************************************************************
-*
-* Command methods
-*
-********************************************************************/
-
-// Thin wrapper to hide the implementation of direct command -> 16 bit read
-bool battery::direct_command(uint8_t command, unsigned int *value) {
-    ESP_LOGD(TAG, "Direct Command: 0x%x", command);
-    return this->bq_hwi->read16(command, value);
-}
-
-// Thin wrapper to hide the implementation of sub command
-void battery::sub_command(uint16_t command) {
-    uint8_t cmd[2];
-    cmd[0] = LOW_BYTE(command);
-    cmd[1] = HIGH_BYTE(command);
-    
-    ESP_LOGD(TAG, "SubCommand: 0x%x", command);
-    this->bq_hwi->write(CMD_DIR_SUBCMD_LOW, cmd, 2);
-}
-
-bool battery::read_sub_command_response_block(unsigned int *data) {
-    bool ret;
-    unsigned int ret_len;
-
-    // Read delayed to allow the device to repopulate & settle as needed
-    // This is cargo culted over from the original code. If delay is not
-    // needed, switch to ->read()
-    ret = this->bq_hwi->read_delayed( CMD_DIR_SUBCMD_RESP_LEN, &ret_len );
-    
-    // Safety check (cargo culted)
-    if( ret_len > SUBCMD_MAX_RESP_LEN ) { ret_len = SUBCMD_MAX_RESP_LEN; }
-    //ESP_LOGD(TAG, "Reading %d bytes", ret_len);
-
-    // get the response in the registers
-    for( int i = 0; i < ret_len; i++ ) {
-        ret = this->bq_hwi->read_delayed( CMD_DIR_SUBCMD_RESP_START + i, data + i );
-        //ESP_LOGD(TAG, "  Byte: %i - Data: %i", i, data[i]);
-    }
-
-    //ESP_LOGD(TAG, "SubCommand RV: %i", ret);
-
-    return ret;
 }
 
 /********************************************************************

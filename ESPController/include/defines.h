@@ -37,6 +37,7 @@
 ********************************************************************/
 
 #define BQ_ADDR 0x8
+#define BQZ_ADDR 0x55
 
 enum RelayState : uint8_t
 {

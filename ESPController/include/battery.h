@@ -7,7 +7,6 @@ class battery
 {
 public:
     // battery(uint8_t addr, HAL_ESP32 *hal, i2c_port_t p);
-    bool isConnected(void);
     void run(void);
 
     /**
@@ -24,11 +23,8 @@ public:
      * into the static field. On subsequent runs, it returns the client existing
      * object stored in the static field.
      */
-    static battery *GetInstance(hardware_interface *hwi);
-    bool direct_command(uint8_t command, unsigned int *value);
-    void sub_command(uint16_t command);
-    bool read_sub_command_response_block(unsigned int *data);
-
+    static battery *GetInstance(hardware_interface *bq_hwi);
+    
     /********************************************************************
      * Battery information methods
      ********************************************************************/
@@ -49,7 +45,7 @@ private:
     static battery * battery_;
     static std::mutex mutex_;
     static TaskHandle_t battery_task_handle;
-    static hardware_interface *bq_hwi;
+    static hardware_interface *hwi;
 
     // Cache for multi-byte subcommands
     // '64' is cargo culted over from the original code.
