@@ -113,3 +113,13 @@ void pack::init(void) {
 
     }
 }
+
+/********************************************************************
+*
+* Pack information methods
+*
+********************************************************************/
+
+bool pack::is_connected(void) {
+    return this->hwi->is_connected();
+}

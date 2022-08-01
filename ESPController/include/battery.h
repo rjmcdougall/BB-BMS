@@ -1,5 +1,5 @@
 #pragma once
-
+#include <defines.h>
 #include "hardware_interface.h"
 #include <mutex>
 
@@ -28,6 +28,8 @@ public:
     /********************************************************************
      * Battery information methods
      ********************************************************************/
+    bool is_connected(void);
+
     unsigned int get_cell_voltage(byte cellNumber);
     float get_internal_temp(void);
     bool is_charging(void);
@@ -61,5 +63,4 @@ private:
 protected:
     battery(hardware_interface *hwi);
     ~battery();
-    std::string value_;
 };

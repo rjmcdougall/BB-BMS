@@ -25,14 +25,14 @@ uint16_t bq34z100::read_register(uint8_t reg, uint8_t len)
 
     //ESP_LOGD(TAG,"read16 Send cmd %i", reg);
     //ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->directCommand(port, BQaddr, command, &value[0], 2));
-    ret = BQhal->readByte(port, BQaddr, reg, &tmp_value[0]);
+    ret = ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->readByte(port, BQaddr, reg, &tmp_value[0]));
     if (ret != ESP_OK)
     {
         return false;
     }
     if (len == 2)
     {
-        ret = BQhal->readByte(port, BQaddr, reg + 1, &tmp_value[1]);
+        ret = ESP_ERROR_CHECK_WITHOUT_ABORT(BQhal->readByte(port, BQaddr, reg + 1, &tmp_value[1]));
         if (ret != ESP_OK)
         {
             return false;

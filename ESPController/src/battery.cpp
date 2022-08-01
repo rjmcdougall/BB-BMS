@@ -169,6 +169,10 @@ void battery::init(void) {
 *
 ********************************************************************/
 
+bool battery::is_connected(void) {
+    return this->hwi->is_connected();
+}
+
 // Read single cell voltage
 unsigned int battery::get_cell_voltage(byte cellNumber) {
     unsigned int value;

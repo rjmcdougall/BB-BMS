@@ -10,6 +10,7 @@
             "includePath": [
                 "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/include",
                 "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/src",
+                "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/lib/crc16",
                 "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/.pio/libdeps/m5stack-core2/M5Core2/src",
                 "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/HTTPClient/src",
                 "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
@@ -194,7 +195,6 @@
                 "/Users/jib/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/qspi_qspi/include",
                 "/Users/jib/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                 "/Users/jib/.platformio/packages/framework-arduinoespressif32/variants/m5stack_core2",
-                "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/lib/crc16",
                 "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/lib/settings",
                 "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                 "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
@@ -227,6 +227,7 @@
                 "path": [
                     "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/include",
                     "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/src",
+                    "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/lib/crc16",
                     "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/.pio/libdeps/m5stack-core2/M5Core2/src",
                     "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/HTTPClient/src",
                     "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
@@ -411,7 +412,6 @@
                     "/Users/jib/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/qspi_qspi/include",
                     "/Users/jib/.platformio/packages/framework-arduinoespressif32/cores/esp32",
                     "/Users/jib/.platformio/packages/framework-arduinoespressif32/variants/m5stack_core2",
-                    "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/lib/crc16",
                     "/Users/jib/sources/git/BMSv4-TIBQ76952/ESPController/lib/settings",
                     "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/ArduinoOTA/src",
                     "/Users/jib/.platformio/packages/framework-arduinoespressif32/libraries/AsyncUDP/src",
