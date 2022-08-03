@@ -29,6 +29,9 @@ public:
      * pack information methods
      ********************************************************************/
     bool is_connected(void);
+    unsigned int state_of_charge(void);
+    unsigned int state_of_health(void);
+    unsigned int capacity_remaining(void);
 
     
 private:

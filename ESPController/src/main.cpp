@@ -30,10 +30,10 @@
 ********************************************************************/
 
 #define RUN_SAMPLE_TASK false
-#define RUN_BATTERY_TASK false
-#define RUN_PACK_TASK false
-#define RUN_RULES_TASK false
-#define RUN_DEBUG_ORIG_BQZ false
+#define RUN_BATTERY_TASK true
+#define RUN_PACK_TASK true
+#define RUN_RULES_TASK true
+#define RUN_DEBUG_ORIG_BQZ true
 
 static const char *TAG = "diybms";
 
@@ -93,6 +93,7 @@ void setup()
     pack* pack;
     if( RUN_PACK_TASK ) {        
         pack = pack::GetInstance(&bqz_hwi);
+        //XXX not actually connecting, and not used in rules; hold off
         //pack->run();
     }    
 
@@ -119,7 +120,9 @@ void setup()
 
         uint8_t soc = bqz.state_of_charge();
         ESP_LOGD(TAG, "BQZ rv: %i", soc);
-    }        
+    }
+
+
 }
 
 /********************************************************************
@@ -133,12 +136,12 @@ void loop()
 
 
     display *d = display::GetInstance();
-    int charge = random(100);
+    int charge = 99;
 
     d->clear();
     d->display_battery(charge);
-    d->display_diagnostics();
-    delay(1000);
+    d->display_diagnostics("Hello: %s", "world");
+    delay(10000);
 
     // d->lcd.setCursor(10,10);    
     // d->lcd.fillScreen(d->lcd.alphaBlend(128, BLACK, DARKGREEN));

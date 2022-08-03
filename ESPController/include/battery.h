@@ -36,6 +36,9 @@ public:
     bool is_discharging(void);
     float min_cell_temp();
     float max_cell_temp();
+    unsigned int max_cell_voltage(void);
+    unsigned int min_cell_voltage(void);
+
     unsigned int get_stack_voltage(void);
     unsigned int get_pack_voltage(void);
     
@@ -58,6 +61,7 @@ private:
      ********************************************************************/
     bool _fet_status(int reg);
     bool _update_dastatus5_cache(void);
+    unsigned int _read_dastatus5_cache(unsigned int cmd);
     float milli_kelvin_to_c(float mk);
 
 protected:

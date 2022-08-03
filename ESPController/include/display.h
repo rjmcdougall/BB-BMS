@@ -37,7 +37,7 @@ public:
 
     void clear(void);    
     void display_battery(int charge);    
-    void display_diagnostics(void);
+    void display_diagnostics(const char *format, ...);
 
     
 private:

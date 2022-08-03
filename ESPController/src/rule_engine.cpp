@@ -11,6 +11,15 @@
  * 
  ********************************************************************/
 
+// XXX TODO: Check these numbers
+#define RULE_MAX_CELL_TEMP 60.0     // in Celsius
+#define RULE_MIN_CELL_TEMP 0.0      // in Celsius
+#define RULE_MAX_CELL_VOLTAGE 4000  // milliVolts
+#define RULE_MIN_CELL_VOLTAGE 2800  // milliVolts
+#define RULE_MAX_MODULE_TEMP 60.0   // in Celsius
+#define RULE_MIN_MODULE_TEMP 0.0    // in Celsius
+#define RULE_MAX_PACK_VOLTAGE 50000 // milliVolts
+#define RULE_MIN_PACK_VOLTAGE 36000 // milliVolts
 
 static const char *TAG = "rule_engine";
 
@@ -71,9 +80,123 @@ void rule_engine::init(void) {
 *
 ********************************************************************/
 
+// Error code: BMSError = 1,
 bool rule_engine::is_hardware_connected() {
-    return this->battery_->is_connected() && this->pack_->is_connected();
+    bool rv = this->battery_->is_connected() && this->pack_->is_connected();
+    if( !rv ) {
+        ESP_LOGD(TAG, "Hardware is disconnected");
+    }
+    return rv;
 }
+
+// Error code: Individualcellovervoltage = 2,
+bool rule_engine::is_battery_cell_over_max_voltage() {
+    bool rv = false;
+
+    unsigned int v = this->battery_->max_cell_voltage();
+    
+    if( v > RULE_MAX_CELL_VOLTAGE ) {
+        rv = true;
+        ESP_LOGD(TAG, "Cell over max voltage: %i > %i", v, RULE_MAX_CELL_VOLTAGE);
+    }
+    return rv;
+
+}
+
+// Error code: Individualcellundervoltage = 3,
+bool rule_engine::is_battery_cell_under_min_voltage() {
+    bool rv = false;
+
+   unsigned int v = this->battery_->min_cell_voltage();
+    if( v < RULE_MIN_CELL_VOLTAGE ) {
+        rv = true;
+        ESP_LOGD(TAG, "Cell under min voltage: %i < %i", v, RULE_MIN_CELL_VOLTAGE);
+    }
+    return rv;    
+}
+
+// Error code: ModuleOverTemperatureInternal = 4,
+bool rule_engine::is_battery_module_over_max_temp() {
+    bool rv = false;
+
+    float t = this->battery_->get_internal_temp();
+    
+    if( t > RULE_MAX_MODULE_TEMP ) {
+        rv = true;
+        ESP_LOGD(TAG, "Module over max temp: %f > %f", t, RULE_MAX_MODULE_TEMP);
+    }
+    return rv;
+}
+
+// Error code: ModuleUnderTemperatureInternal = 5,
+bool rule_engine::is_battery_module_under_min_temp() {
+    bool rv = false;
+
+    float t = this->battery_->get_internal_temp();
+    if( t < RULE_MIN_MODULE_TEMP ) {
+        rv = true;
+        ESP_LOGD(TAG, "Module under min temp: %f < %f", t, RULE_MIN_MODULE_TEMP);
+    }
+    return rv;
+}
+
+
+// Error code: IndividualcellovertemperatureExternal = 6,
+bool rule_engine::is_battery_cell_over_max_temp() {
+    bool rv = false;
+
+    float t = this->battery_->max_cell_temp();
+    if( t > RULE_MAX_CELL_TEMP ) {
+        rv = true;
+        ESP_LOGD(TAG, "Cell over max temp: %f > %f", t, RULE_MAX_CELL_TEMP);
+    }
+    return rv;
+}
+
+
+// Error code: IndividualcellundertemperatureExternal = 7,
+bool rule_engine::is_battery_cell_under_min_temp() {
+    bool rv = false;
+
+    float t = this->battery_->min_cell_temp();
+    if( t < RULE_MIN_CELL_TEMP ) {
+        rv = true;
+        ESP_LOGD(TAG, "Cell under min temp: %f < %f", t, RULE_MIN_CELL_TEMP);
+    }
+    return rv;
+}
+
+
+// Error code: PackOverVoltage = 8,
+bool rule_engine::is_battery_pack_over_max_voltage() {
+    bool rv = false;
+
+    // XXX this returns an int - is taht right?
+    unsigned int v = this->battery_->get_pack_voltage();
+    
+    if( v > RULE_MAX_PACK_VOLTAGE ) {
+        rv = true;
+        ESP_LOGD(TAG, "Pack over max voltage: %i > %i", v, RULE_MAX_PACK_VOLTAGE);
+    }
+    return rv;
+
+}
+
+// Error code: PackUnderVoltage = 9,
+bool rule_engine::is_battery_pack_under_min_voltage() {
+    bool rv = false;
+
+    // XXX this returns an int - is taht right?
+    unsigned int v = this->battery_->get_pack_voltage();
+    
+    if( v < RULE_MIN_PACK_VOLTAGE ) {
+        rv = true;
+        ESP_LOGD(TAG, "Pack under min voltage: %i < %i", v, RULE_MIN_PACK_VOLTAGE);
+    }
+    return rv;    
+}
+
+
 
 /********************************************************************
 *
@@ -99,11 +222,51 @@ void rule_engine::rule_engine_task(void *param) {
             ESP_LOGD(TAG, "Current HWM/Stack = %i/%i", uxHighWaterMark, TASK_SIZE);
         }
 
-        if( !re_->is_hardware_connected() ) {
-            ESP_LOGD(TAG, "Hardware is disconnected");
-            rule_outcome[Rule::BMSError] = true;
-        }
+        /* Error codes:
+            EmergencyStop = 0,
+            BMSError = 1,
+            Individualcellovervoltage = 2,
+            Individualcellundervoltage = 3,
+            ModuleOverTemperatureInternal = 4,
+            ModuleUnderTemperatureInternal = 5,
+            IndividualcellovertemperatureExternal = 6,
+            IndividualcellundertemperatureExternal = 7,
+            PackOverVoltage = 8,
+            PackUnderVoltage = 9,
+            Timer2 = 10,
+            Timer1 = 11
+        */
 
+        // XXX No error condition for this yet.
+        rule_outcome[Rule::EmergencyStop] = false;
+
+        // Step 1 - can we even measure?
+        rule_outcome[Rule::BMSError] = re_->is_hardware_connected();
+
+        // Individual cell voltage
+        // Individualcellovervoltage = 2,
+        // Individualcellundervoltage = 3,            
+        rule_outcome[Rule::Individualcellovervoltage] = re_->is_battery_cell_over_max_voltage();
+        rule_outcome[Rule::Individualcellundervoltage] = re_->is_battery_cell_under_min_voltage();
+            
+        // Module temperature
+        // ModuleOverTemperatureInternal = 4,
+        // ModuleUnderTemperatureInternal = 5,          
+        rule_outcome[Rule::ModuleOverTemperatureInternal] = re_->is_battery_module_over_max_temp();
+        rule_outcome[Rule::ModuleUnderTemperatureInternal] = re_->is_battery_module_under_min_temp();
+
+        // Single cell over or under temp?
+        // IndividualcellovertemperatureExternal = 6,
+        // IndividualcellundertemperatureExternal = 7,                    
+        rule_outcome[Rule::IndividualcellovertemperatureExternal] = re_->is_battery_cell_over_max_temp();
+        rule_outcome[Rule::IndividualcellundertemperatureExternal] = re_->is_battery_cell_under_min_temp();
+
+        // Total pack voltage ok?
+        // PackOverVoltage = 8,
+        // PackUnderVoltage = 9,
+        rule_outcome[Rule::PackOverVoltage] = re_->is_battery_pack_over_max_voltage();
+        rule_outcome[Rule::PackUnderVoltage] = re_->is_battery_pack_under_min_voltage();
+        
         vTaskDelay( TASK_INTERVAL );
     }
 }

@@ -52,7 +52,7 @@ enum InternalErrorCode : uint8_t
     WaitingForModulesToReply = 4,
     ZeroVoltModule = 5,
     ControllerMemoryError = 6,
-    ErrorEmergencyStop =7
+    ErrorEmergencyStop = 7
 };
 
 class rule_engine
@@ -80,6 +80,14 @@ public:
      * rule_engine 
      ********************************************************************/
     bool is_hardware_connected(); 
+    bool is_battery_module_under_min_temp();
+    bool is_battery_module_over_max_temp();
+    bool is_battery_cell_under_min_temp();
+    bool is_battery_cell_over_max_temp();
+    bool is_battery_cell_under_min_voltage();
+    bool is_battery_cell_over_max_voltage();
+    bool is_battery_pack_under_min_voltage();
+    bool is_battery_pack_over_max_voltage();
 
 private:
     void init(void);

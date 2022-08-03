@@ -173,7 +173,7 @@ bool battery::is_connected(void) {
     return this->hwi->is_connected();
 }
 
-// Read single cell voltage
+// Read single cell voltage - in mV
 unsigned int battery::get_cell_voltage(byte cellNumber) {
     unsigned int value;
     if (battery_->hwi->direct_command(CELL_NO_TO_ADDR(cellNumber), &value)) {
@@ -231,21 +231,34 @@ bool battery::_update_dastatus5_cache(void){
     return this->hwi->read_sub_command_response_block(&_dastatus5_cache[0]);
 }
 
-float battery::max_cell_temp(void) {
-    return this->milli_kelvin_to_c(_dastatus5_cache[DASTATUS_TEMPCELLMAX] | (_dastatus5_cache[DASTATUS_TEMPCELLMAX + 1] << 8));
-}
-float battery::min_cell_temp(void) {
-    return this->milli_kelvin_to_c(_dastatus5_cache[DASTATUS_TEMPCELLMIN] | (_dastatus5_cache[DASTATUS_TEMPCELLMIN + 1] << 8));
+unsigned int battery::_read_dastatus5_cache(unsigned int cmd) {
+    return (_dastatus5_cache[cmd] | (_dastatus5_cache[cmd + 1] << 8));
 }
 
+float battery::max_cell_temp(void) {
+    return this->milli_kelvin_to_c(this->_read_dastatus5_cache(DASTATUS_TEMPCELLMAX));
+}
+float battery::min_cell_temp(void) {
+    return this->milli_kelvin_to_c(this->_read_dastatus5_cache(DASTATUS_TEMPCELLMIN));
+}
+
+// millivolts
+unsigned int battery::max_cell_voltage(void) {
+    return this->_read_dastatus5_cache(DASTATUS_MAXCELL);    
+}
+// millivolts
+unsigned int battery::min_cell_voltage(void) {
+    return this->_read_dastatus5_cache(DASTATUS_MINCELL);    
+}
 
 // Stack & Pack Voltage
 // XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
-// Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 1073432620
+// Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 49
+// XXX everything ELSE is in milivolts - so assume it's x1000?
 unsigned int battery::get_stack_voltage(void) {
     unsigned int voltage;
     if( battery_->hwi->direct_command(CMD_READ_VOLTAGE_STACK, &voltage) ) {
-        return voltage;
+        return voltage * 1000;
     } else {
         return 0;
     }        
@@ -254,7 +267,7 @@ unsigned int battery::get_stack_voltage(void) {
 unsigned int battery::get_pack_voltage(void) {
     unsigned int voltage;
     if( battery_->hwi->direct_command(CMD_READ_VOLTAGE_PACK, &voltage) ) {
-        return voltage;
+        return voltage * 1000;
     } else {
         return 0;
     }        
@@ -305,6 +318,7 @@ void battery::battery_task(void *param) {
 
         battery_->_update_dastatus5_cache();
         ESP_LOGD(TAG, "Battery - Min Temp: %g - Max Temp: %g", battery_->min_cell_temp(), battery_->max_cell_temp());
+        ESP_LOGD(TAG, "Battery - Min mVolt: %i - Max mVolt: %i", battery_->min_cell_voltage(), battery_->max_cell_voltage());
 
         ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);
 

@@ -1,6 +1,7 @@
 #include "defines.h"
 #include "display.h"
 #include <mutex>
+#include <stdarg.h>
 
 // This conflicts with (I THINK) mutex, where chrono.h also defines a min()
 // macro, as well as something in M5Core2. So including it here explicitly
@@ -23,7 +24,7 @@
 static const char *TAG = "display";
 
 static const int TASK_SIZE = TASK_STACK_SIZE_LARGE;
-static const int TASK_INTERVAL = 1000; // ms
+static const int TASK_INTERVAL = 10000; // ms
 
 /********************************************************************
  * 
@@ -165,17 +166,17 @@ void display::display_battery(int charge) {
         DISPLAY_BORDER_WIDTH,           // y start
         DISPLAY_BATTERY_WIDTH,          // Width
         DISPLAY_BATTERY_HEIGHT,         // Height
-        DISPLAY_BATTERY_BORDER_COLOR     // Border color
+        DISPLAY_BATTERY_BORDER_COLOR    // Border color
     );
 
     // Fill the battery to charge
-    int battery_width = (int) ((DISPLAY_BATTERY_WIDTH / 100) * charge);
+    int battery_width = (int)((DISPLAY_BATTERY_WIDTH - (DISPLAY_BATTERY_BORDER * 2)) * charge / 100 );
     M5.Lcd.fillRect( 
         DISPLAY_BORDER_WIDTH + DISPLAY_BATTERY_BORDER,          // x start - offset to get a border around the battery
         DISPLAY_BORDER_WIDTH + DISPLAY_BATTERY_BORDER,          // y start - offset to get a border around the battery
         battery_width,                                          // Width  - we fill in the above rect
         DISPLAY_BATTERY_HEIGHT - DISPLAY_BATTERY_BORDER * 2,    // Height - we fill in the above rect
-        DISPLAY_BATTERY_CHARGE_COLOR                             // Border color
+        DISPLAY_BATTERY_CHARGE_COLOR                            // Content color
     );
 
     // Print the charge percentage
@@ -187,7 +188,7 @@ void display::display_battery(int charge) {
     M5.Lcd.setTextSize(DISPLAY_TEXT_SIZE);
 }
 
-void display::display_diagnostics(void) {
+void display::display_diagnostics(const char *format, ...) {
 
     M5.Lcd.fillRect( 
         DISPLAY_DIAGNOSTIC_X,                                                 
@@ -199,5 +200,18 @@ void display::display_diagnostics(void) {
 
     M5.Lcd.setCursor( DISPLAY_DIAGNOSTIC_CURSOR_X, DISPLAY_DIAGNOSTIC_CURSOR_Y );
 
-    M5.Lcd.printf("Hello world");
-}    
+    // Effectively wrapping 'printf':
+    // https://stackoverflow.com/questions/1056411/how-to-pass-variable-number-of-arguments-to-printf-sprintf
+    char buffer[256];
+    va_list args;
+    va_start (args, format);
+    vsnprintf (buffer, 255, format, args);
+    
+    ESP_LOGD(TAG, "Diagnostic: %s", buffer);
+    M5.Lcd.printf(buffer);
+    
+    va_end(args); 
+}
+
+
+
