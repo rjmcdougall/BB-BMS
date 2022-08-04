@@ -89,6 +89,7 @@ static void IRAM_ATTR TCA9534AInterrupt()
   xQueueSendToBackFromISR(queue_i2c, &m, NULL);
 }
 
+// XXX TODO - refactor this; it can only be called once
 void hardware_interface::init(void) {
     ESP_LOGD(TAG, "Initializing HWI");
 

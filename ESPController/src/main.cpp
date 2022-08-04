@@ -30,10 +30,10 @@
 ********************************************************************/
 
 #define RUN_SAMPLE_TASK false
-#define RUN_BATTERY_TASK true
+#define RUN_BATTERY_TASK false
 #define RUN_PACK_TASK true
-#define RUN_RULES_TASK true
-#define RUN_DEBUG_ORIG_BQZ true
+#define RUN_RULES_TASK false
+#define RUN_DEBUG_ORIG_BQZ false
 
 static const char *TAG = "diybms";
 
@@ -56,7 +56,6 @@ void setup()
 
     M5.Spk.DingDong();
 
-
     display *d = display::GetInstance();
     M5.Lcd.clear();
     d->display_battery(72);
@@ -69,7 +68,7 @@ void setup()
     // that interact with the hardware. It's member variables may get GC'd otherwise,
     // leading to unpredictable outcomes: https://www.freertos.org/a00125.html
     static HAL_ESP32 hal;
-    static hardware_interface bq_hwi = hardware_interface(BQ_ADDR, &hal, I2C_NUM_1);
+    //static hardware_interface bq_hwi = hardware_interface(BQ_ADDR, &hal, I2C_NUM_1);
     static hardware_interface bqz_hwi = hardware_interface(BQZ_ADDR, &hal, I2C_NUM_1);
     bq34z100 bqz = bq34z100(BQZ_ADDR, &hal, I2C_NUM_1);
 
@@ -85,8 +84,8 @@ void setup()
     // used in rules
     battery* bat;
     if( RUN_BATTERY_TASK ) {        
-        bat = battery::GetInstance(&bq_hwi);
-        bat->run();
+        //bat = battery::GetInstance(&bq_hwi);
+        //bat->run();
     }    
 
     // used in rules
