@@ -26,10 +26,13 @@ public:
     
 private:
     void init(void);
+    void _init_once(void);
     bool _read_N(uint8_t reg, unsigned int *value, int num, bool aggregate_result, bool delay);
 
     // Private variables
     HAL_ESP32 *hal;
 	uint8_t addr;
 	i2c_port_t port;
+
+    bool _ENVIRONMENT_IS_INITIALIZED;
 };

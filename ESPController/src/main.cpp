@@ -68,7 +68,7 @@ void setup()
     // that interact with the hardware. It's member variables may get GC'd otherwise,
     // leading to unpredictable outcomes: https://www.freertos.org/a00125.html
     static HAL_ESP32 hal;
-    //static hardware_interface bq_hwi = hardware_interface(BQ_ADDR, &hal, I2C_NUM_1);
+    static hardware_interface bq_hwi = hardware_interface(BQ_ADDR, &hal, I2C_NUM_1);
     static hardware_interface bqz_hwi = hardware_interface(BQZ_ADDR, &hal, I2C_NUM_1);
     bq34z100 bqz = bq34z100(BQZ_ADDR, &hal, I2C_NUM_1);
 
@@ -84,8 +84,8 @@ void setup()
     // used in rules
     battery* bat;
     if( RUN_BATTERY_TASK ) {        
-        //bat = battery::GetInstance(&bq_hwi);
-        //bat->run();
+        bat = battery::GetInstance(&bq_hwi);
+        bat->run();
     }    
 
     // used in rules
@@ -93,7 +93,7 @@ void setup()
     if( RUN_PACK_TASK ) {        
         pack = pack::GetInstance(&bqz_hwi);
         //XXX not actually connecting, and not used in rules; hold off
-        //pack->run();
+        pack->run();
     }    
 
     if( RUN_RULES_TASK ) {        

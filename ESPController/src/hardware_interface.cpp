@@ -52,6 +52,8 @@
 static const char *TAG = "hwi";
 QueueHandle_t queue_i2c = NULL;
 
+bool _ENVIRONMENT_IS_INITIALIZED = false;
+
 /********************************************************************
 *
 * Initialization
@@ -93,11 +95,24 @@ static void IRAM_ATTR TCA9534AInterrupt()
 void hardware_interface::init(void) {
     ESP_LOGD(TAG, "Initializing HWI");
 
-    // Configure the I2C driver: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/i2c.html
-    this->hal->ConfigureI2C(TCA6408Interrupt, TCA9534AInterrupt);
-    this->hal->ConfigureVSPI();
+    // Some things must only be set up ONCE. Do it here.
+    this->_init_once();
 
-    this->hal->SwapGPIO0ToOutput();
+    // Do things that have to happen for every instance here.   
+    
+}
+
+void hardware_interface::_init_once(void) {
+    if( !_ENVIRONMENT_IS_INITIALIZED ) {
+        ESP_LOGD(TAG, "Initializing HWI Environment (ONCE ONLY)");
+
+        // Configure the I2C driver: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/i2c.html
+        this->hal->ConfigureI2C(TCA6408Interrupt, TCA9534AInterrupt);
+        this->hal->ConfigureVSPI();
+        this->hal->SwapGPIO0ToOutput();
+    
+        _ENVIRONMENT_IS_INITIALIZED = true;
+    }            
 }
 
 /********************************************************************
