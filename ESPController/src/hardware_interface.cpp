@@ -6,7 +6,6 @@
 // culting this over to maintain same behaviour.
 #define HWI_DELAY_TO_SETTLE vTaskDelay(pdMS_TO_TICKS(10));
 
-
 /********************************************************************
  * Subcommands are additional commands that are accessed indirectly using
  * the 7-bit command address space and provide the capability for block data 
@@ -42,13 +41,6 @@
 #define LOW_BYTE(data) (byte)(data & 0x00FF)
 #define HIGH_BYTE(data) (byte)((data >> 8) & 0x00FF)
 
-/********************************************************************
- * Singleton class! Implemented using:
- * 
- * https://refactoring.guru/design-patterns/singleton/cpp/example#example-1
- * 
- ********************************************************************/
-
 static const char *TAG = "hwi";
 QueueHandle_t queue_i2c = NULL;
 
@@ -70,6 +62,11 @@ hardware_interface::hardware_interface(uint8_t hwi_addr, HAL_ESP32 *hwi_hal, i2c
     this->init();
 }
 
+/* XXX NOTE:
+ * we don't acutally use TCA chip, but the original code supported it, and the 
+ * constructor requires it. Since we ported over the original HAL code as is,
+ * this is 100% legacy, and should perhaps be refactored out at some point
+ */
 // These 2 functions are needed for the I2C configuration
 static void IRAM_ATTR TCA6408Interrupt() {
   if (queue_i2c == NULL) { return; }
