@@ -126,6 +126,9 @@ std::mutex battery::mutex_;
 // '64' is cargo culted over from the original code.
 unsigned int _dastatus5_cache[64] = {0};
 
+// Do we have anythign to report? Don't show garbage in status/calls
+bool battery::_has_data = false;
+
 /********************************************************************
 *
 * Initialization
@@ -171,6 +174,10 @@ void battery::init(void) {
 
 bool battery::is_connected(void) {
     return this->hwi->is_connected();
+}
+
+bool::battery::has_data(void) {
+    return this->_has_data;
 }
 
 // Read single cell voltage - in mV
@@ -255,7 +262,7 @@ unsigned int battery::min_cell_voltage(void) {
 // XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
 // Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 49
 // XXX everything ELSE is in milivolts - so assume it's x1000?
-// No, it's userV == milliV/10 (it's a 16bit issue). So multiple by 10
+// No, it's userV == milliV/10 (it's a 16bit issue). So multiple by
 unsigned int battery::get_stack_voltage(void) {
     unsigned int voltage;
     if( battery_->hwi->direct_command(CMD_READ_VOLTAGE_STACK, &voltage) ) {
@@ -321,8 +328,9 @@ void battery::battery_task(void *param) {
         ESP_LOGD(TAG, "Battery - Min Temp: %g - Max Temp: %g", battery_->min_cell_temp(), battery_->max_cell_temp());
         ESP_LOGD(TAG, "Battery - Min mVolt: %i - Max mVolt: %i", battery_->min_cell_voltage(), battery_->max_cell_voltage());
 
-        ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);
+        battery_->_has_data = true;
 
+        ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);
         vTaskDelay( TASK_INTERVAL );
     }
 }

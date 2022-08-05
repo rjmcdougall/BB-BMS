@@ -29,6 +29,8 @@ public:
      * pack information methods
      ********************************************************************/
     bool is_connected(void);
+    bool has_data(void);
+
     unsigned int state_of_charge(void);
     unsigned int state_of_health(void);
     unsigned int capacity_remaining(void);
@@ -43,6 +45,7 @@ private:
     static std::mutex mutex_;
     static TaskHandle_t pack_task_handle;
     static hardware_interface *hwi;
+    static bool _has_data;
 
     
     /********************************************************************

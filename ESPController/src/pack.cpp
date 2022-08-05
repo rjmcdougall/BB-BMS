@@ -79,6 +79,7 @@ static const int TASK_INTERVAL = 10000; // ms
 
 TaskHandle_t pack::pack_task_handle = NULL;
 hardware_interface *pack::hwi;
+bool pack::_has_data = false;
 
 pack* pack::pack_{nullptr};
 std::mutex pack::mutex_;
@@ -144,6 +145,10 @@ bool pack::is_connected(void) {
     return this->hwi->is_connected();
 }
 
+bool::pack::has_data(void) {
+    return this->_has_data;
+}
+
 // percentage
 unsigned int pack::state_of_charge(void) {
     unsigned int value;
@@ -201,8 +206,9 @@ void pack::pack_task(void *param) {
         ESP_LOGD(TAG, "State of Health: %i%%", pack_->state_of_health());
         ESP_LOGD(TAG, "State of Capacity Remaining: %i aH", pack_->capacity_remaining());
 
-        ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);
+        pack_->_has_data = true;
 
+        ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);
         vTaskDelay( TASK_INTERVAL );
     }        
 }

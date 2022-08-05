@@ -29,6 +29,7 @@ public:
      * Battery information methods
      ********************************************************************/
     bool is_connected(void);
+    bool has_data(void);
 
     unsigned int get_cell_voltage(byte cellNumber);
     float get_internal_temp(void);
@@ -51,10 +52,12 @@ private:
     static std::mutex mutex_;
     static TaskHandle_t battery_task_handle;
     static hardware_interface *hwi;
+    static bool _has_data;
 
     // Cache for multi-byte subcommands
     // '64' is cargo culted over from the original code.
     unsigned int _dastatus5_cache[64];    
+    
 
     /********************************************************************
      * Battery information methods
