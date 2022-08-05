@@ -164,13 +164,14 @@ unsigned int pack::state_of_health(void) {
     }        
 }
 
-// amp hours
+// amp hours - 40,000 is a 'real number'. The code will return
+// 4,000 becuase of 16 bit limtis - so multiply by 10
 unsigned int pack::capacity_remaining(void) {
     unsigned int value;
     if( this->hwi->read16(CMD_CAPACITY_REMAINING, &value) ) {
-        return value;
+        return value * 10;
     } else {
-        return PACK_DEBUG_RETURN_BOGUS_VALUE ? 33 : 0;
+        return PACK_DEBUG_RETURN_BOGUS_VALUE ? 40000 : 0;
     }        
 }
 
