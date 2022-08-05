@@ -23,9 +23,6 @@
 
 static const char *TAG = "display";
 
-static const int TASK_SIZE = TASK_STACK_SIZE_LARGE;
-static const int TASK_INTERVAL = 10000; // ms
-
 /********************************************************************
  * 
  * Shape dimensions
@@ -59,6 +56,12 @@ static const int TASK_INTERVAL = 10000; // ms
 static const int DISPLAY_BORDER_WIDTH = 10;
 static int DISPLAY_USABLE_WIDTH;        // Set during init() - needs a lookup
 static int DISPLAY_USABLE_HEIGHT;       // Set during init() - needs a lookup
+static const int DISPLAY_CHAR_BUFFER = 256; // For 'printf' buffer
+
+// Error colors
+static const int DISPLAY_ERROR_TEXT_SIZE = 4;
+static const int DISPLAY_ERROR_TEXT_COLOR = WHITE;
+static const int DISPLAY_ERROR_BG_COLOR = RED;
 
 // Battery display settings
 static const int DISPLAY_BATTERY_BORDER_COLOR = LIGHTGREY;
@@ -80,7 +83,7 @@ static int DISPLAY_DIAGNOSTIC_WIDTH;     // Set during init() - needs a lookup
 static int DISPLAY_DIAGNOSTIC_Y;         // Set during init() - needs a lookup
 
 static const int DISPLAY_STATUS_COLOR = WHITE;
-static const int DISPLAY_STATUS_TEXT_SIZE = 3;
+static const int DISPLAY_STATUS_TEXT_SIZE = 2;
 static const int _DISPLAY_STATUS_OFFSET = 20;   // extra padding from the borders
 static int DISPLAY_STATUS_A_CURSOR_X = _DISPLAY_STATUS_OFFSET;   
 static int DISPLAY_STATUS_A_CURSOR_Y;   // Set during init() - needs a lookup
@@ -91,11 +94,8 @@ static int DISPLAY_STATUS_C_CURSOR_Y;   // Set during init() - needs a lookup
 static int DISPLAY_STATUS_D_CURSOR_X;   // Set during init() - needs a lookup
 static int DISPLAY_STATUS_D_CURSOR_Y;   // Set during init() - needs a lookup
 
-TaskHandle_t display::display_task_handle = NULL;
-
 display* display::display_{nullptr};
 std::mutex display::mutex_;
-
 
 /********************************************************************
 *
@@ -149,7 +149,7 @@ void display::init(void) {
     DISPLAY_DIAGNOSTIC_Y = M5.Lcd.height() - DISPLAY_DIAGNOSTIC_HEIGHT;
     // Also try to center this in the middle of the band - bit of fudgery needed, as 'half way down' is the top left pixel of 
     // whatever we are printing, and 'text size' is not the same as pixels...
-    DISPLAY_DIAGNOSTIC_CURSOR_Y = DISPLAY_DIAGNOSTIC_Y + 10;
+    DISPLAY_DIAGNOSTIC_CURSOR_Y = DISPLAY_DIAGNOSTIC_Y + 5;
 
     // The 4 Diagnostic quadrants
     // Offset into the center for the X axis, and then mirror that to the other side 
@@ -203,18 +203,38 @@ void display::clear(void) {
     M5.lcd.clear();
 }
 
+void display::display_error(const char *format, ...) {
+    this->clear();
+
+    M5.Lcd.setTextColor(DISPLAY_ERROR_TEXT_COLOR);    
+    M5.Lcd.setTextSize(DISPLAY_ERROR_TEXT_SIZE);    
+    M5.Lcd.fillScreen(DISPLAY_ERROR_BG_COLOR);
+    M5.Lcd.setCursor(DISPLAY_BORDER_WIDTH, DISPLAY_BORDER_WIDTH);
+
+    // Effectively wrapping 'printf':
+    // https://stackoverflow.com/questions/1056411/how-to-pass-variable-number-of-arguments-to-printf-sprintf
+    char buffer[DISPLAY_CHAR_BUFFER];
+    va_list args;
+    va_start (args, format);
+    vsnprintf (buffer, DISPLAY_CHAR_BUFFER -1, format, args);
+    
+    ESP_LOGD(TAG, "Error: %s", buffer);
+    M5.Lcd.printf(buffer);    
+    va_end(args);     
+}
+
 void display::_display_status_cell(int x, int y, const char *format, ...) {
     
     M5.Lcd.setTextSize(DISPLAY_STATUS_TEXT_SIZE);
     M5.Lcd.setTextColor(DISPLAY_STATUS_COLOR);    
-    M5.Lcd.setCursor( x, y ); // 
+    M5.Lcd.setCursor( x, y );
     
     // Effectively wrapping 'printf':
     // https://stackoverflow.com/questions/1056411/how-to-pass-variable-number-of-arguments-to-printf-sprintf
-    char buffer[256];
+    char buffer[DISPLAY_CHAR_BUFFER];
     va_list args;
     va_start (args, format);
-    vsnprintf (buffer, 255, format, args);
+    vsnprintf (buffer, DISPLAY_CHAR_BUFFER -1, format, args);
     
     ESP_LOGD(TAG, "Status Cell: %s", buffer);
     M5.Lcd.printf(buffer);    
@@ -293,16 +313,13 @@ void display::display_diagnostics(const char *format, ...) {
 
     // Effectively wrapping 'printf':
     // https://stackoverflow.com/questions/1056411/how-to-pass-variable-number-of-arguments-to-printf-sprintf
-    char buffer[256];
+    char buffer[DISPLAY_CHAR_BUFFER];
     va_list args;
     va_start (args, format);
-    vsnprintf (buffer, 255, format, args);
+    vsnprintf (buffer, DISPLAY_CHAR_BUFFER -1, format, args);
     
     ESP_LOGD(TAG, "Diagnostic: %s", buffer);
     M5.Lcd.printf(buffer);
     
     va_end(args); 
 }
-
-
-
