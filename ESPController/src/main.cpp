@@ -29,11 +29,13 @@
 *
 ********************************************************************/
 
-#define RUN_SAMPLE_TASK false
-#define RUN_BATTERY_TASK true
-#define RUN_PACK_TASK true
-#define RUN_RULES_TASK false
-#define RUN_DEBUG_ORIG_BQZ false
+#define RUN_BATTERY_TASK true       // All single cell battery info
+#define RUN_PACK_TASK true          // All pack wide info
+#define RUN_RULES_TASK true         // Rules applied to existing data
+#define RUN_STATUS_TASK true        // Visual & audio diagnostics & display
+
+#define RUN_SAMPLE_TASK false       // This is just to exercise sample code - should usually be false
+#define RUN_DEBUG_ORIG_BQZ false    // For debugging an issue - should usually be false
 
 static const char *TAG = "diybms";
 
@@ -56,14 +58,7 @@ void setup()
     //M5.Spk.DingDong();
 
     display *d = display::GetInstance();
-    d->clear();
-    d->display_battery(91);
-    d->display_diagnostics("Hello: %s", "world");
-    d->display_cell_temp(21,42);
-    d->display_cell_voltage_delta(301);
-    d->display_stack_voltage(42.1234567);
-            
-    
+
     /* Interact with the hardware - use this as a (thin) wrapper around 
     * HAL, and a way to avoid repeating common code (address, port, etc)
     * This will also allow replacing HAL at some point, should we so choose
@@ -100,14 +95,35 @@ void setup()
         pack->run();
     }    
 
+    rule_engine* rules;
     if( RUN_RULES_TASK ) {        
         if(bat && pack) {
-            rule_engine* rules = rule_engine::GetInstance(pack, bat);
+            rules = rule_engine::GetInstance(pack, bat);
             rules->run();
         } else {
             ESP_LOGE(TAG, "Can not run rules without a pack & battery");
         }
     }    
+
+    // This shows all the visuals on the display, as well as audible alarms.
+    // Really shouldn't be disabled, but depends on pack, battery & rules 
+    // to do its job.
+    status* status;
+    if( RUN_STATUS_TASK ) {   
+        if(bat && pack && rules) {
+            status = status::GetInstance(pack, bat, rules);
+            status->run();
+        } else {
+            ESP_LOGE(TAG, "Can not run Status without a pack & battery & rules");
+            d->clear();
+            d->display_error("CAN NOT SHOW STATUS");
+        }                        
+    } else {
+        ESP_LOGD(TAG, "Status disabled");
+        d->clear();
+        d->display_diagnostics("Status disabled");
+    }
+
 
     // XXX debug run for original bqz
     if( RUN_DEBUG_ORIG_BQZ ) {
