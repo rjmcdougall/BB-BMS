@@ -30,7 +30,7 @@
 ********************************************************************/
 
 #define RUN_SAMPLE_TASK false
-#define RUN_BATTERY_TASK false
+#define RUN_BATTERY_TASK true
 #define RUN_PACK_TASK true
 #define RUN_RULES_TASK false
 #define RUN_DEBUG_ORIG_BQZ false
@@ -53,13 +53,17 @@ void setup()
      * https://github.com/m5stack/M5Core2/issues/92
      * ************************************************/
     M5.begin();
-
-    M5.Spk.DingDong();
+    //M5.Spk.DingDong();
 
     display *d = display::GetInstance();
-    M5.Lcd.clear();
-    d->display_battery(72);
-
+    d->clear();
+    d->display_battery(91);
+    d->display_diagnostics("Hello: %s", "world");
+    d->display_cell_temp(21,42);
+    d->display_cell_voltage_delta(301);
+    d->display_stack_voltage(42.1234567);
+            
+    
     /* Interact with the hardware - use this as a (thin) wrapper around 
     * HAL, and a way to avoid repeating common code (address, port, etc)
     * This will also allow replacing HAL at some point, should we so choose
@@ -133,15 +137,15 @@ void setup()
 void loop()
 {
 
+    if(0) {
+        display *d = display::GetInstance();
+        int charge = 99;
 
-    display *d = display::GetInstance();
-    int charge = 99;
-
-    d->clear();
-    d->display_battery(charge);
-    d->display_diagnostics("Hello: %s", "world");
-    delay(10000);
-
+        d->clear();
+        d->display_battery(charge);
+        d->display_diagnostics("Hello: %s", "world");
+        delay(10000);
+    }
     // d->lcd.setCursor(10,10);    
     // d->lcd.fillScreen(d->lcd.alphaBlend(128, BLACK, DARKGREEN));
     // d->lcd.printf("OK: hello world");
