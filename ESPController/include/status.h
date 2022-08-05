@@ -1,4 +1,8 @@
 #pragma once
+#include "rule_engine.h"
+#include "pack.h"
+#include "battery.h"
+#include "display.h"
 #include <defines.h>
 #include <mutex>
 
@@ -22,8 +26,9 @@ public:
      * into the static field. On subsequent runs, it returns the client existing
      * object stored in the static field.
      */
-    static status *GetInstance();
-    
+    static status *GetInstance(pack *p, battery *b, rule_engine *r);
+    //static battery *GetInstance(hardware_interface *bq_hwi);
+
     /********************************************************************
      * status information methods
      ********************************************************************/
@@ -37,12 +42,16 @@ private:
     static std::mutex mutex_;
     static TaskHandle_t status_task_handle;
 
-    
+    static pack *pack_;
+    static battery *battery_;
+    static rule_engine *re_; 
+    static display *display_;
+
     /********************************************************************
      * status information methods
      ********************************************************************/    
 
 protected:
-    status(void);
+    status(pack *p, battery *b, rule_engine *r);
     ~status();
 };
