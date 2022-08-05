@@ -38,11 +38,14 @@ public:
     void clear(void);    
     void display_battery(int charge);    
     void display_diagnostics(const char *format, ...);
+    void display_cell_temp(int min_temp, int max_temp);
+    void display_cell_voltage_delta(int delta);
+    void display_stack_voltage(float voltage);
 
-    
 private:
     void init(void);
     static void display_task(void *param);
+    void _display_status_cell(int x, int y, const char *format, ...);
     
     // Private variables
     static display * display_;

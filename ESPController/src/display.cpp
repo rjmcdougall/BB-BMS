@@ -42,11 +42,11 @@ static const int TASK_INTERVAL = 10000; // ms
  * | |                                                            | |
  * | +------------------------------------------------------------+ |
  * |                                                                |
- * |  Total Current                              Module Temp        |
- * |      XY V                                     Min / Max        |
+ * |  Cell Temp (A)                              <Empty> (B)        |
+ * |   Min / Max C                                                  |
  * |                                                                |
- * |  Cell Voltage                                 Can Bus          |
- * |      XY V                                     Min / Max        |
+ * |  Cell Voltage Delta (C)                     Stack Voltage (D)  |
+ * |    XYX mV                                     XYZ.AB V         |
  * |                                                                |
  * |                    Random Diagnostics Here                     |
  * +----------------------------------------------------------------+
@@ -79,6 +79,17 @@ static int DISPLAY_DIAGNOSTIC_CURSOR_Y;  // Set during init() - needs a lookup
 static int DISPLAY_DIAGNOSTIC_WIDTH;     // Set during init() - needs a lookup
 static int DISPLAY_DIAGNOSTIC_Y;         // Set during init() - needs a lookup
 
+static const int DISPLAY_STATUS_COLOR = WHITE;
+static const int DISPLAY_STATUS_TEXT_SIZE = 3;
+static const int _DISPLAY_STATUS_OFFSET = 20;   // extra padding from the borders
+static int DISPLAY_STATUS_A_CURSOR_X = _DISPLAY_STATUS_OFFSET;   
+static int DISPLAY_STATUS_A_CURSOR_Y;   // Set during init() - needs a lookup
+static int DISPLAY_STATUS_B_CURSOR_X;   // Set during init() - needs a lookup
+static int DISPLAY_STATUS_B_CURSOR_Y;   // Set during init() - needs a lookup
+static int DISPLAY_STATUS_C_CURSOR_X = _DISPLAY_STATUS_OFFSET;
+static int DISPLAY_STATUS_C_CURSOR_Y;   // Set during init() - needs a lookup
+static int DISPLAY_STATUS_D_CURSOR_X;   // Set during init() - needs a lookup
+static int DISPLAY_STATUS_D_CURSOR_Y;   // Set during init() - needs a lookup
 
 TaskHandle_t display::display_task_handle = NULL;
 
@@ -140,11 +151,46 @@ void display::init(void) {
     // whatever we are printing, and 'text size' is not the same as pixels...
     DISPLAY_DIAGNOSTIC_CURSOR_Y = DISPLAY_DIAGNOSTIC_Y + 10;
 
-    //M5.Lcd.setTextFont(2);
+    // The 4 Diagnostic quadrants
+    // Offset into the center for the X axis, and then mirror that to the other side 
+    // C & D use the same offset as A & B respectively
+    DISPLAY_STATUS_B_CURSOR_X = (int) (DISPLAY_USABLE_WIDTH/2) + DISPLAY_STATUS_A_CURSOR_X;
+    DISPLAY_STATUS_D_CURSOR_X = DISPLAY_STATUS_B_CURSOR_X;
+
+    int status_height = DISPLAY_USABLE_HEIGHT - DISPLAY_BATTERY_HEIGHT - DISPLAY_DIAGNOSTIC_HEIGHT;
+    DISPLAY_STATUS_A_CURSOR_Y = DISPLAY_BORDER_WIDTH + DISPLAY_BATTERY_HEIGHT + _DISPLAY_STATUS_OFFSET;
+    DISPLAY_STATUS_B_CURSOR_Y = DISPLAY_STATUS_A_CURSOR_Y;
+    DISPLAY_STATUS_C_CURSOR_Y = (int)(status_height/2) + DISPLAY_STATUS_A_CURSOR_Y;
+    DISPLAY_STATUS_D_CURSOR_Y = DISPLAY_STATUS_C_CURSOR_Y;
+
+    // Diagnostic code to show cell placement
+    /*
+    M5.Lcd.setTextSize(DISPLAY_STATUS_TEXT_SIZE);
+    M5.Lcd.setTextColor(DISPLAY_STATUS_COLOR);    
+    M5.Lcd.setCursor( DISPLAY_STATUS_A_CURSOR_X, DISPLAY_STATUS_A_CURSOR_Y ); // center on the battery
+    M5.Lcd.printf( "Cell A");
+
+    M5.Lcd.setTextSize(DISPLAY_STATUS_TEXT_SIZE);
+    M5.Lcd.setTextColor(DISPLAY_STATUS_COLOR);    
+    M5.Lcd.setCursor( DISPLAY_STATUS_B_CURSOR_X, DISPLAY_STATUS_B_CURSOR_Y ); // center on the battery
+    M5.Lcd.printf( "Cell B");
+
+    M5.Lcd.setTextSize(DISPLAY_STATUS_TEXT_SIZE);
+    M5.Lcd.setTextColor(DISPLAY_STATUS_COLOR);    
+    M5.Lcd.setCursor( DISPLAY_STATUS_C_CURSOR_X, DISPLAY_STATUS_C_CURSOR_Y ); // center on the battery
+    M5.Lcd.printf( "Cell C");
+
+    M5.Lcd.setTextSize(DISPLAY_STATUS_TEXT_SIZE);
+    M5.Lcd.setTextColor(DISPLAY_STATUS_COLOR);    
+    M5.Lcd.setCursor( DISPLAY_STATUS_D_CURSOR_X, DISPLAY_STATUS_D_CURSOR_Y ); // center on the battery
+    M5.Lcd.printf( "Cell D");
+    */
+
+    // Set boot diagnostics, if any
     M5.Lcd.setTextSize(DISPLAY_TEXT_SIZE);
     M5.Lcd.setTextColor(DISPLAY_TEXT_COLOR);
-
-    M5.Lcd.println(DISPLAY_BOOT_TEXT);
+    M5.Lcd.clear();
+    M5.Lcd.println(DISPLAY_BOOT_TEXT);   
 }
 
 /********************************************************************
@@ -155,6 +201,51 @@ void display::init(void) {
 
 void display::clear(void) {
     M5.lcd.clear();
+}
+
+void display::_display_status_cell(int x, int y, const char *format, ...) {
+    
+    M5.Lcd.setTextSize(DISPLAY_STATUS_TEXT_SIZE);
+    M5.Lcd.setTextColor(DISPLAY_STATUS_COLOR);    
+    M5.Lcd.setCursor( x, y ); // 
+    
+    // Effectively wrapping 'printf':
+    // https://stackoverflow.com/questions/1056411/how-to-pass-variable-number-of-arguments-to-printf-sprintf
+    char buffer[256];
+    va_list args;
+    va_start (args, format);
+    vsnprintf (buffer, 255, format, args);
+    
+    ESP_LOGD(TAG, "Status Cell: %s", buffer);
+    M5.Lcd.printf(buffer);    
+    va_end(args);     
+}
+
+// Cell A: "20/44 C"
+void display::display_cell_temp(int min_temp, int max_temp) {
+    this->_display_status_cell(
+        DISPLAY_STATUS_A_CURSOR_X,
+        DISPLAY_STATUS_A_CURSOR_Y,
+        "%i/%i C", min_temp, max_temp
+    );
+}
+
+// Cell C: "301 mV"
+void display::display_cell_voltage_delta(int delta) {
+    this->_display_status_cell(
+        DISPLAY_STATUS_C_CURSOR_X,
+        DISPLAY_STATUS_C_CURSOR_Y,
+        "~%i mV", delta
+    );
+}
+
+// Cell C: "301 mV"
+void display::display_stack_voltage(float voltage) {
+    this->_display_status_cell(
+        DISPLAY_STATUS_D_CURSOR_X,
+        DISPLAY_STATUS_D_CURSOR_Y,
+        "%.2f V", voltage
+    );
 }
 
 // Charge percentage
