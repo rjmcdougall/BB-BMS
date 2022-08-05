@@ -36,6 +36,7 @@ public:
      ********************************************************************/
 
     void clear(void);    
+    void display_error(const char *format, ...);
     void display_battery(int charge);    
     void display_diagnostics(const char *format, ...);
     void display_cell_temp(int min_temp, int max_temp);
@@ -50,9 +51,7 @@ private:
     // Private variables
     static display * display_;
     static std::mutex mutex_;
-    static TaskHandle_t display_task_handle;
 
-    
     /********************************************************************
      * display information methods
      ********************************************************************/    
