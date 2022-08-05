@@ -255,10 +255,11 @@ unsigned int battery::min_cell_voltage(void) {
 // XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
 // Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 49
 // XXX everything ELSE is in milivolts - so assume it's x1000?
+// No, it's userV == milliV/10 (it's a 16bit issue). So multiple by 10
 unsigned int battery::get_stack_voltage(void) {
     unsigned int voltage;
     if( battery_->hwi->direct_command(CMD_READ_VOLTAGE_STACK, &voltage) ) {
-        return voltage * 1000;
+        return voltage * 10;
     } else {
         return 0;
     }        
@@ -267,7 +268,7 @@ unsigned int battery::get_stack_voltage(void) {
 unsigned int battery::get_pack_voltage(void) {
     unsigned int voltage;
     if( battery_->hwi->direct_command(CMD_READ_VOLTAGE_PACK, &voltage) ) {
-        return voltage * 1000;
+        return voltage * 10;
     } else {
         return 0;
     }        
