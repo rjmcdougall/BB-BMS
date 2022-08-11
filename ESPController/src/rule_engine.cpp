@@ -13,11 +13,11 @@
 
 // XXX TODO: Check these numbers
 #define RULE_MAX_CELL_TEMP 60.0     // in Celsius
-#define RULE_MIN_CELL_TEMP 0.0      // in Celsius
+#define RULE_MIN_CELL_TEMP -0.1     // in Celsius - set below 0, as it's initialized with 0
 #define RULE_MAX_CELL_VOLTAGE 4000  // milliVolts
 #define RULE_MIN_CELL_VOLTAGE 2800  // milliVolts
 #define RULE_MAX_MODULE_TEMP 60.0   // in Celsius
-#define RULE_MIN_MODULE_TEMP 0.0    // in Celsius
+#define RULE_MIN_MODULE_TEMP -0.1   // in Celsius - set below 0, as it's initialized with 0
 #define RULE_MAX_PACK_VOLTAGE 50000 // milliVolts
 #define RULE_MIN_PACK_VOLTAGE 36000 // milliVolts
 
@@ -33,8 +33,14 @@ battery *rule_engine::battery_;
 
 rule_engine* rule_engine::re_{nullptr};
 std::mutex rule_engine::mutex_;
+std::mutex rule_engine::run_all_rules_mutex_;
 
-bool rule_engine::rule_outcome[RELAY_RULES] = {false};
+
+const int rule_engine::_rule_count = RELAY_RULES;
+bool rule_engine::_rule_outcome[RELAY_RULES] = {false};
+bool rule_engine::_has_data = false;
+int rule_engine::_error_count = 0;                  // Amount of rules that failed
+int rule_engine::_error_rules[RELAY_RULES] = {-1};   // Rule numbers that failed
 
 /********************************************************************
 *
@@ -48,8 +54,9 @@ bool rule_engine::rule_outcome[RELAY_RULES] = {false};
  *      set the value. RU:
  */
  rule_engine *rule_engine::GetInstance(pack *pack_obj, battery *battery_obj) {
+   
     std::lock_guard<std::mutex> lock(rule_engine::mutex_);
-    
+
     // No instance yet - create one
     if( re_ == nullptr ) {
         ESP_LOGD(TAG, "Creating new instance");
@@ -76,9 +83,60 @@ void rule_engine::init(void) {
 
 /********************************************************************
 *
+* Accessors
+*
+********************************************************************/
+
+
+bool::rule_engine::has_data(void) {
+    return this->_has_data;
+}
+
+// Create a copy - don't want the caller to mess up the contents of our
+// checks. Returns the amount of rules we have checked so they can 
+// iterate
+int rule_engine::get_all_rule_outcomes( bool *outcome ) {
+
+    if( !this->has_data() ) {
+        ESP_LOGD(TAG, "No data yet - returning 0");
+        return 0;
+    }
+
+    int rv = this->_rule_count;
+
+    for( int i = 0; i < this->_rule_count; i++ ) {
+        outcome[i] = this->_rule_outcome[i];
+    }
+
+    return rv;
+}
+
+// Create a copy - don't want the caller to mess up the contents of our
+// checks. Returns the amount of rules we FAILED so they can iterate
+int rule_engine::get_rule_outcomes( bool *outcome ) {
+    if( !this->has_data() ) {
+        ESP_LOGD(TAG, "No data yet - returning 0");
+        return 0;
+    }
+
+    int rv = this->_error_count;
+
+    for( int i = 0; i < this->_error_count; i++ ) {
+        outcome[i] = this->_error_rules[i];
+    }
+
+    return rv;
+}    
+
+/********************************************************************
+*
 * Invidividual rule checks
 *
 ********************************************************************/
+
+int rule_engine::max_rule_count() {
+    return this->_rule_count;
+}
 
 // Error code: BMSError = 1,
 bool rule_engine::is_hardware_connected() {
@@ -196,7 +254,81 @@ bool rule_engine::is_battery_pack_under_min_voltage() {
     return rv;    
 }
 
+void rule_engine::_run_all_rules() {
+    std::lock_guard<std::mutex> lock(rule_engine::run_all_rules_mutex_);
 
+    /* Error codes:
+        EmergencyStop = 0,
+        BMSError = 1,
+        Individualcellovervoltage = 2,
+        Individualcellundervoltage = 3,
+        ModuleOverTemperatureInternal = 4,
+        ModuleUnderTemperatureInternal = 5,
+        IndividualcellovertemperatureExternal = 6,
+        IndividualcellundertemperatureExternal = 7,
+        PackOverVoltage = 8,
+        PackUnderVoltage = 9,
+        Timer2 = 10,
+        Timer1 = 11
+    */
+
+    // XXX No error condition for this yet.
+    _rule_outcome[Rule::EmergencyStop] = false;
+
+    // Step 1 - can we even measure?
+    _rule_outcome[Rule::BMSError] = !this->is_hardware_connected();
+
+    // NOTE: These methods only make sense if we have battery data - so check that FIRST, and 
+    // then go on evaluating the rules.
+    if( this->battery_->has_data() ) {
+
+        // Individual cell voltage
+        // Individualcellovervoltage = 2,
+        // Individualcellundervoltage = 3,            
+        _rule_outcome[Rule::Individualcellovervoltage] = this->is_battery_cell_over_max_voltage();
+        _rule_outcome[Rule::Individualcellundervoltage] = this->is_battery_cell_under_min_voltage();
+            
+        // Module temperature
+        // ModuleOverTemperatureInternal = 4,
+        // ModuleUnderTemperatureInternal = 5,          
+        _rule_outcome[Rule::ModuleOverTemperatureInternal] = this->is_battery_module_over_max_temp();
+        _rule_outcome[Rule::ModuleUnderTemperatureInternal] = this->is_battery_module_under_min_temp();
+
+        // Single cell over or under temp?
+        // IndividualcellovertemperatureExternal = 6,
+        // IndividualcellundertemperatureExternal = 7,                    
+        _rule_outcome[Rule::IndividualcellovertemperatureExternal] = this->is_battery_cell_over_max_temp();
+        _rule_outcome[Rule::IndividualcellundertemperatureExternal] = this->is_battery_cell_under_min_temp();
+
+        // Total pack voltage ok?
+        // PackOverVoltage = 8,
+        // PackUnderVoltage = 9,
+        _rule_outcome[Rule::PackOverVoltage] = this->is_battery_pack_over_max_voltage();
+        _rule_outcome[Rule::PackUnderVoltage] = this->is_battery_pack_under_min_voltage();
+
+
+        // Now do the inventory; what failed and how many?
+        int _tmp_error_count = 0;
+        for( int i = 0; i < this->_rule_count; i++ ) {
+            // Reset the value
+            this->_error_rules[i] = -1;
+
+            if( this->_rule_outcome[i] == true ) {
+                ESP_LOGE(TAG, "ERROR: Rule %i triggered", i);
+                _tmp_error_count += 1;
+                this->_error_rules[_tmp_error_count] = i;
+            }
+        }
+
+        this->_error_count = _tmp_error_count;
+
+        // We have data to work with, so errors count now.
+        this->_has_data = true;
+
+    } else {
+        ESP_LOGD(TAG, "No battery data available yet - skipping individual battery rules");
+    }
+}
 
 /********************************************************************
 *
@@ -222,51 +354,9 @@ void rule_engine::rule_engine_task(void *param) {
             ESP_LOGD(TAG, "Current HWM/Stack = %i/%i", uxHighWaterMark, TASK_SIZE);
         }
 
-        /* Error codes:
-            EmergencyStop = 0,
-            BMSError = 1,
-            Individualcellovervoltage = 2,
-            Individualcellundervoltage = 3,
-            ModuleOverTemperatureInternal = 4,
-            ModuleUnderTemperatureInternal = 5,
-            IndividualcellovertemperatureExternal = 6,
-            IndividualcellundertemperatureExternal = 7,
-            PackOverVoltage = 8,
-            PackUnderVoltage = 9,
-            Timer2 = 10,
-            Timer1 = 11
-        */
+        // Every time we call this, we want to lock the thread, so call a separate function.
+        re_->_run_all_rules();
 
-        // XXX No error condition for this yet.
-        rule_outcome[Rule::EmergencyStop] = false;
-
-        // Step 1 - can we even measure?
-        rule_outcome[Rule::BMSError] = re_->is_hardware_connected();
-
-        // Individual cell voltage
-        // Individualcellovervoltage = 2,
-        // Individualcellundervoltage = 3,            
-        rule_outcome[Rule::Individualcellovervoltage] = re_->is_battery_cell_over_max_voltage();
-        rule_outcome[Rule::Individualcellundervoltage] = re_->is_battery_cell_under_min_voltage();
-            
-        // Module temperature
-        // ModuleOverTemperatureInternal = 4,
-        // ModuleUnderTemperatureInternal = 5,          
-        rule_outcome[Rule::ModuleOverTemperatureInternal] = re_->is_battery_module_over_max_temp();
-        rule_outcome[Rule::ModuleUnderTemperatureInternal] = re_->is_battery_module_under_min_temp();
-
-        // Single cell over or under temp?
-        // IndividualcellovertemperatureExternal = 6,
-        // IndividualcellundertemperatureExternal = 7,                    
-        rule_outcome[Rule::IndividualcellovertemperatureExternal] = re_->is_battery_cell_over_max_temp();
-        rule_outcome[Rule::IndividualcellundertemperatureExternal] = re_->is_battery_cell_under_min_temp();
-
-        // Total pack voltage ok?
-        // PackOverVoltage = 8,
-        // PackUnderVoltage = 9,
-        rule_outcome[Rule::PackOverVoltage] = re_->is_battery_pack_over_max_voltage();
-        rule_outcome[Rule::PackUnderVoltage] = re_->is_battery_pack_under_min_voltage();
-        
         vTaskDelay( TASK_INTERVAL );
     }
 }

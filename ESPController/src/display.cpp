@@ -323,3 +323,14 @@ void display::display_diagnostics(const char *format, ...) {
     
     va_end(args); 
 }
+
+void display::display_border(int color) {
+    // Draw the battery outline
+    M5.Lcd.drawRect( 
+        0,                  // x start
+        0,                  // y start
+        M5.Lcd.width(),     // Width
+        M5.Lcd.height(),    // Height
+        color               // Border color
+    );
+}

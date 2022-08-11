@@ -35,6 +35,9 @@ public:
      * display information methods
      ********************************************************************/
 
+    static const int DISPLAY_COLOR_ERROR = RED;
+    static const int DISPLAY_COLOR_WARNING = YELLOW;
+
     void clear(void);    
     void display_error(const char *format, ...);
     void display_battery(int charge);    
@@ -42,6 +45,7 @@ public:
     void display_cell_temp(int min_temp, int max_temp);
     void display_cell_voltage_delta(int delta);
     void display_stack_voltage(float voltage);
+    void display_border(int color);
 
 private:
     void init(void);

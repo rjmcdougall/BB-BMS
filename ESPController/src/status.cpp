@@ -17,8 +17,8 @@ static const int TASK_INTERVAL = 10000; // ms
 // Check more often if we're still booting; data will be coming in
 static const int TASK_BOOT_INTERVAL = 1000; // ms
 
-static const char *TASK_STATUS_OK = "OK";
-static const char *TASK_STATUS_BOOT = "Booting";
+static const char *TASK_STATUS_OK = "Status: OK";
+static const char *TASK_STATUS_BOOT = "Status: Booting";
 
 TaskHandle_t status::status_task_handle = NULL;
 
@@ -96,8 +96,13 @@ void status::status_task(void *param) {
     display *d = status_->display_;
     battery *bat = status_->battery_;
     pack *pack = status_->pack_;
+    rule_engine *re = status_->re_;
 
     for(;;) {
+        // Depending on whether we have all data or not, we'll return to this task earlier or later.
+        int interval = TASK_INTERVAL;
+        char *status = (char *)TASK_STATUS_OK;
+
         // // XXX Can we just wrap this???
         if( DEBUG_TASKS ) {
             uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
@@ -118,16 +123,32 @@ void status::status_task(void *param) {
             d->display_stack_voltage( bat->get_stack_voltage()/1000 );
         }    
 
-        // Depending on whether we have all data or not, we'll return to this task earlier or later.
-        int interval = TASK_INTERVAL;
-        char *status = (char *)TASK_STATUS_OK;
-        if( !bat->has_data() || !pack->has_data()  ) {
+        // Use temp value so we can draw the border last
+        bool display_error_border = false;
+        if( re->has_data() ) {
+            bool rule_error = false;
+
+            // Max amount of rules we can have
+            bool rules[re->max_rule_count()]; 
+            int error_count = re->get_rule_outcomes( &rules[0] );
+            
+            if(error_count > 0) {
+                display_error_border = true;
+                status = (char * )"ERROR COUNT: XXX TODO";
+            }
+        }    
+
+        if( !bat->has_data() || !pack->has_data() || !re->has_data() ) {
             interval = TASK_BOOT_INTERVAL;
             status = (char *)TASK_STATUS_BOOT;
         }
 
         // everything oK?
-        d->display_diagnostics("Status: %s", status);
+        d->display_diagnostics(status);
+        if( display_error_border) {
+            d->display_border(d->DISPLAY_COLOR_ERROR);
+        }
+
         ESP_LOGD("TAG", "Task sleeping for: %i ms", interval);
         vTaskDelay( interval );
     }
