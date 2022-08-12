@@ -1,9 +1,10 @@
 #pragma once
+#include <defines.h>
 #include "rule_engine.h"
 #include "pack.h"
 #include "battery.h"
 #include "display.h"
-#include <defines.h>
+#include "audio.h"
 #include <mutex>
 
 class status
@@ -36,16 +37,20 @@ public:
 private:
     void init(void);
     static void status_task(void *param);
-    
+    static void status_alert_task(void *param);
+
     // Private variables
     static status * status_;
     static std::mutex mutex_;
     static TaskHandle_t status_task_handle;
+    static TaskHandle_t status_task_alert_handle;
 
+    static int active_error_count;
     static pack *pack_;
     static battery *battery_;
     static rule_engine *re_; 
     static display *display_;
+    static audio *audio_;
 
     /********************************************************************
      * status information methods

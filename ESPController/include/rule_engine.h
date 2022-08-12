@@ -85,6 +85,7 @@ public:
     int max_rule_count();
     int get_rule_outcomes( bool *outcome );
     int get_all_rule_outcomes( bool *outcome );
+    int get_active_error_count();
     bool is_battery_module_under_min_temp();
     bool is_battery_module_over_max_temp();
     bool is_battery_cell_under_min_temp();

@@ -16,11 +16,19 @@ static const int TASK_SIZE = TASK_STACK_SIZE_LARGE;
 static const int TASK_INTERVAL = 10000; // ms
 // Check more often if we're still booting; data will be coming in
 static const int TASK_BOOT_INTERVAL = 1000; // ms
+// How often are we doing an audio alert?
+static const int TASK_ALERT_INTERVAL = 5000; // ms
+
+// How often do we ring the alarm bell in a row?
+static const int STATUS_ALERT_COUNT = 3;
+
 
 static const char *TASK_STATUS_OK = "Status: OK";
 static const char *TASK_STATUS_BOOT = "Status: Booting";
 
 TaskHandle_t status::status_task_handle = NULL;
+TaskHandle_t status::status_task_alert_handle = NULL;
+
 
 status* status::status_{nullptr};
 std::mutex status::mutex_;
@@ -29,6 +37,7 @@ pack *status::pack_;
 battery *status::battery_;
 rule_engine *status::re_; 
 display *status::display_;
+audio *status::audio_;
 
 /********************************************************************
 *
@@ -49,6 +58,7 @@ display *status::display_;
         ESP_LOGD(TAG, "Creating new instance");
         
         status_ = new status(p, b, r);
+        audio_ = audio::GetInstance();
 
         status_->init();
 
@@ -153,7 +163,43 @@ void status::status_task(void *param) {
     }
 }
 
+// Tasks Must be infinite loops:
+void status::status_alert_task(void *param) {
+    UBaseType_t uxHighWaterMark;
+    // XXX Can we just wrap this???
+    if( DEBUG_TASKS ) {
+        uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+        ESP_LOGD(TAG, "Starting Alert HWM/Stack = %i/%i", uxHighWaterMark, TASK_SIZE);
+    }        
+
+    
+    for(;;) {
+
+        // // XXX Can we just wrap this???
+        if( DEBUG_TASKS ) {
+            uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+            ESP_LOGD(TAG, "Current Alert HWM/Stack = %i/%i", uxHighWaterMark, TASK_SIZE);
+        }
+
+        audio *a = status_->audio_;
+        rule_engine *re = status_->re_;
+
+        // We have active errors - start beeping;
+        if( re->has_data() && re->get_active_error_count() ) {
+            a->play_alert(STATUS_ALERT_COUNT);    
+        }
+
+        ESP_LOGD("TAG", "Alert Task sleeping for: %i ms", TASK_ALERT_INTERVAL);
+        vTaskDelay( TASK_ALERT_INTERVAL );
+    }
+}
+        
 void status::run(void) {
+    // First, the task to measure the rules and update the display
     // How tasks work: https://www.freertos.org/a00125.html
     xTaskCreate(status::status_task, TAG, TASK_SIZE, nullptr, TASK_DEFAULT_PRIORITY, &status_task_handle);       
+
+    // Next, the task to do audio alerts, or other updates like that.
+    // How tasks work: https://www.freertos.org/a00125.html
+    xTaskCreate(status::status_alert_task, TAG, TASK_SIZE, nullptr, TASK_DEFAULT_PRIORITY, &status_task_alert_handle);           
 }

@@ -2,6 +2,13 @@
 #include "audio.h"
 #include <mutex>
 
+// This conflicts with (I THINK) mutex, where chrono.h also defines a min()
+// macro, as well as something in M5Core2. So including it here explicitly
+// rather than in defines.h, which goes everywhere. And making sure it goes
+// LAST, as it has a conditional define, whereas chrono.h does not:
+// https://github.com/m5stack/M5StickC/pull/139
+#include <M5Core2.h>
+
 /********************************************************************
  * Singleton class! Implemented using:
  * 
@@ -59,3 +66,12 @@ void audio::init(void) {
 }
 
 
+void audio::play_alert(int cnt) {
+
+    ESP_LOGD(TAG, "BEEP x %i", cnt);
+    for( int i = 0; i < cnt; i++ ) {
+        // XXX re-enable - turned off not to annoy people on the flight :)
+        //M5.Spk.DingDong();
+        delay(100);
+    }
+}

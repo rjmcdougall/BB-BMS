@@ -23,6 +23,8 @@ public:
      * object stored in the static field.
      */
     static audio *GetInstance();
+
+    void play_alert(int cnt);
     
     /********************************************************************
      * audio information methods

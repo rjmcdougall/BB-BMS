@@ -128,6 +128,11 @@ int rule_engine::get_rule_outcomes( bool *outcome ) {
     return rv;
 }    
 
+// Simply return how many errros we currently know about
+int rule_engine::get_active_error_count() {
+    return this->_error_count;
+}
+
 /********************************************************************
 *
 * Invidividual rule checks
