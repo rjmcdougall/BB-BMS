@@ -44,6 +44,7 @@ public:
     void display_diagnostics(const char *format, ...);
     void display_cell_temp(int min_temp, int max_temp);
     void display_cell_voltage_delta(int delta);
+    void display_cell_count(int count);
     void display_stack_voltage(float voltage);
     void display_border(int color);
 

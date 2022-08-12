@@ -118,6 +118,7 @@ void status::status_task(void *param) {
 
         if( bat->has_data() ) {
             d->display_cell_temp( bat->min_cell_temp(), bat->max_cell_temp() );
+            d->display_cell_count( bat->get_active_cell_count() );
             d->display_cell_voltage_delta( bat->max_cell_voltage() - bat->min_cell_voltage() );
             // This is returned in mV, and display is in Volts.
             d->display_stack_voltage( bat->get_stack_voltage()/1000 );
@@ -126,13 +127,11 @@ void status::status_task(void *param) {
         // Use temp value so we can draw the border last
         bool display_error_border = false;
         if( re->has_data() ) {
-            bool rule_error = false;
-
             // Max amount of rules we can have
             bool rules[re->max_rule_count()]; 
             int error_count = re->get_rule_outcomes( &rules[0] );
             
-            if(error_count > 0) {
+            if(error_count) {
                 display_error_border = true;
                 status = (char * )"ERROR COUNT: XXX TODO";
             }

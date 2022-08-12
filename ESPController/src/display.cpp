@@ -250,6 +250,16 @@ void display::display_cell_temp(int min_temp, int max_temp) {
     );
 }
 
+// Cell B: "3 Cells"
+void display::display_cell_count(int count) {
+    this->_display_status_cell(
+        DISPLAY_STATUS_B_CURSOR_X,
+        DISPLAY_STATUS_B_CURSOR_Y,
+        "%i Cells", count
+    );
+}
+
+
 // Cell C: "301 mV"
 void display::display_cell_voltage_delta(int delta) {
     this->_display_status_cell(
@@ -259,7 +269,7 @@ void display::display_cell_voltage_delta(int delta) {
     );
 }
 
-// Cell C: "301 mV"
+// Cell D: "11.23 V"
 void display::display_stack_voltage(float voltage) {
     this->_display_status_cell(
         DISPLAY_STATUS_D_CURSOR_X,

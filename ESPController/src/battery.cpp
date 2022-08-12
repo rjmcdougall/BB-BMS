@@ -112,8 +112,9 @@ diybms_eeprom_settings mysettings;
 uint16_t ConfigHasChanged = 0;
 uint16_t TotalNumberOfCells() { return mysettings.totalNumberOfBanks * mysettings.totalNumberOfSeriesModules; }
 */
-static const int CELL_COUNT = 4; // XXX get this from config or elsewhere
-static unsigned int cell_voltage[CELL_COUNT];
+unsigned int battery::cell_voltage[BATTERY_MAX_CELL_COUNT] = {0};   // individual voltages
+unsigned int battery::active_cells[BATTERY_MAX_CELL_COUNT] = {0};   // the slots of the active cells
+unsigned int battery::active_cell_count = 0;                       // the amount of active cells
 
 
 TaskHandle_t battery::battery_task_handle = NULL;
@@ -171,6 +172,91 @@ void battery::init(void) {
 * Battery information methods
 *
 ********************************************************************/
+
+/* XXX NOTE: 
+ * So, getting the active cells is a PITA via a direct command. See below this
+ * comment the original code. Here's the issues:
+ * 1) You have to do a write, then a read (so far so good)
+ * 2) The subsequent read returns the response length as 36 bytes (this is wrong);
+ *    it's 2 bytes, as per the spec:
+ *    // From Table 13-37. Data Memory Table
+ *    0x9304 Vcell Mode H2 0x0000 0xFFFF
+ *    So if you run the 'standard' code to read all the bytes in the return value
+ *    you end up with total gibberish. 
+ * 3) The original code compensated by 'just' reading 2 bytes, because that is
+ *    what the spec says, but would require another custom method to override 
+ *    the response length based on the 'user knowing better' :(
+ * 4) Add to that that the test hardware doesn't report its cells accurate, so it
+ *    would require a manual override when using that.
+ * 
+ * So instead, we just probe all the cells up to MAX count, and see if they resport
+ * any meaningful data once we have connected. If yes, they're active cells. If not,
+ * they are not. This simplifies the code greatly.
+ * 
+ * If we feel like implementing the dynamic look up later, we can by just reimplementing
+ * the function below. For now, I am happy with this method.
+
+// this is for the test hardware. Set to false if we fix the hardware
+// or run against actual batteries
+#define BATTERY_HARDCODED_VCELL 0x1000000000000011  
+#define CMD_VCELL_COUNT 0x9304
+
+bool bq76952::readDataMemory(uint16_t addr, uint8_t *data)
+{
+    ESP_LOGD(TAG,"BQreadDataMemory Send Addr %i", addr);
+
+    data[0] = LOW_BYTE(addr);
+    data[1] = HIGH_BYTE(addr);
+
+    esp_err_t ret = BQhal->writeMultipleBytes(port, BQaddr, CMD_DIR_SUBCMD_LOW, data, 2);
+    if (ret != ESP_OK) {
+      //ESP_LOGD(TAG, "writecmd failed");
+      return false;
+    }
+
+    ESP_LOGD(TAG,"BQreadDataMemory Send Read Req %i", addr);
+    ret = BQhal->readByte(port, BQaddr, CMD_DIR_RESP_START, data);
+    ESP_LOGD(TAG,"BQreadDataMemory Reply %x %i", *data, ret);
+    return (ret == ESP_OK);
+}
+
+// Read vcell mode
+unsigned int bq76952::getVcellMode(void) {
+  uint8_t vCellMode[2];
+  if (!readDataMemory(0x9304, &vCellMode[0])) {
+    ESP_LOGD(TAG,"Error reading vcellMode0");
+    return 0;
+  }
+  if (!readDataMemory(0x9305, &vCellMode[1])) {
+    ESP_LOGD(TAG,"Error reading vcellMode1");
+    return 0;
+  }
+  return vCellMode[1] << 8 | vCellMode[0];
+}
+*/
+
+unsigned int battery::get_active_cells(unsigned int *cells, unsigned int max) {
+    int cell_index = 0;    
+    // Cells start counting at index 1, not index 0, so offset by 1!
+    for( int i = 1; i < max + 1; i++ ) {
+        int voltage = this->get_cell_voltage(i);
+        if(voltage >= BATTERY_MIN_CELL_VOLTAGE) {
+            ESP_LOGD(TAG, "Found active cell: %i - %i mV", i, voltage);
+            // Store that cell N is active in the next available slot;
+            cells[cell_index++] = i;
+        } else {
+            ESP_LOGD(TAG, "Cell %i is not active: %i mV (< %i mV reported)", i, voltage, BATTERY_MIN_CELL_VOLTAGE);
+        }
+    }
+
+    // The amount of active cells
+    return cell_index;
+}
+
+unsigned int battery::get_active_cell_count(void) {
+    return this->active_cell_count;
+}
+
 
 bool battery::is_connected(void) {
     return this->hwi->is_connected();
@@ -249,6 +335,10 @@ float battery::min_cell_temp(void) {
     return this->milli_kelvin_to_c(this->_read_dastatus5_cache(DASTATUS_TEMPCELLMIN));
 }
 
+// XXX TODO: the 'minimum is being reported as 0 on the test hardware. This could be because
+// it's measuring phantom cells. At which case, no problem, it'll just work on the real batteries.
+// If it's not, we should switch this to keep track of the min and max reported from each cell,
+// and update the status that way.
 // millivolts
 unsigned int battery::max_cell_voltage(void) {
     return this->_read_dastatus5_cache(DASTATUS_MAXCELL);    
@@ -299,40 +389,54 @@ void battery::battery_task(void *param) {
 
     for(;;) {
 
+        if( battery_->is_connected() ) {
 
-        // // XXX Can we just wrap this???
-        if( DEBUG_TASKS ) {
-            uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
-            ESP_LOGD(TAG, "Current HWM/Stack = %i/%i - Connected: %s", uxHighWaterMark, TASK_SIZE, battery_->hwi->is_connected() ? "true" : "false");
+            // First things first - let's get the active cell count on our battery:
+            if( !battery_->active_cell_count ) {
+                ESP_LOGD(TAG, "Getting active cell count");
+                battery_->active_cell_count = battery_->get_active_cells(&battery_->active_cells[0], BATTERY_MAX_CELL_COUNT);
+                ESP_LOGD(TAG, "Active cell count found: %i", battery_->active_cell_count);
+            }
+
+            // // XXX Can we just wrap this???
+            if( DEBUG_TASKS ) {
+                uxHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+                ESP_LOGD(TAG, "Current HWM/Stack = %i/%i - Connected: %s", uxHighWaterMark, TASK_SIZE, battery_->hwi->is_connected() ? "true" : "false");
+            }
+
+            for( int i = 0; i < battery_->active_cell_count; ++i ) {
+                int cell_number = battery_->active_cells[i];
+                // Get the voltage for this cell index
+                unsigned int v = battery_->get_cell_voltage( cell_number );
+                // And store it
+                battery_->cell_voltage[i] = v;
+
+                ESP_LOGD(TAG, "Voltage for cell %i: %i", cell_number, v);
+            }
+
+            // XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
+            // Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 1073432620
+            ESP_LOGD(TAG, "Stack Voltage: %i - Pack Voltage: %i", battery_->get_stack_voltage(), battery_->get_pack_voltage());
+            
+            bool charging = battery_->is_charging();
+            bool discharging = battery_->is_discharging();
+            ESP_LOGD(TAG, "Charging: %i - Discharging: %i", charging, discharging);
+
+            float temp_in_c = battery_->get_internal_temp();
+            ESP_LOGD(TAG, "Internal board temp: %g", temp_in_c);
+
+            battery_->_update_dastatus5_cache();
+            ESP_LOGD(TAG, "Battery - Min Temp: %g - Max Temp: %g", battery_->min_cell_temp(), battery_->max_cell_temp());
+            ESP_LOGD(TAG, "Battery - Min mVolt: %i - Max mVolt: %i", battery_->min_cell_voltage(), battery_->max_cell_voltage());
+
+            battery_->_has_data = true;
+
+            ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);
+            vTaskDelay( TASK_INTERVAL );
+        } else {
+            ESP_LOGD(TAG, "Battery is not connected!");
         }
-
-        for( int i = 0; i < CELL_COUNT; ++i ) {
-            unsigned int v = battery_->get_cell_voltage(i);
-            cell_voltage[i] = v;
-
-            ESP_LOGD(TAG, "Voltage for cell %i: %i", i, v);
-        }
-
-        // XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
-        // Sample: [161378][D][battery.cpp:310] battery_task(): [TAG] Stack Voltage: 1175 - Pack Voltage: 1073432620
-        ESP_LOGD(TAG, "Stack Voltage: %i - Pack Voltage: %i", battery_->get_stack_voltage(), battery_->get_pack_voltage());
-        
-        bool charging = battery_->is_charging();
-        bool discharging = battery_->is_discharging();
-        ESP_LOGD(TAG, "Charging: %i - Discharging: %i", charging, discharging);
-
-        float temp_in_c = battery_->get_internal_temp();
-        ESP_LOGD(TAG, "Internal board temp: %g", temp_in_c);
-
-        battery_->_update_dastatus5_cache();
-        ESP_LOGD(TAG, "Battery - Min Temp: %g - Max Temp: %g", battery_->min_cell_temp(), battery_->max_cell_temp());
-        ESP_LOGD(TAG, "Battery - Min mVolt: %i - Max mVolt: %i", battery_->min_cell_voltage(), battery_->max_cell_voltage());
-
-        battery_->_has_data = true;
-
-        ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);
-        vTaskDelay( TASK_INTERVAL );
-    }
+    }        
 }
 
 void battery::run(void) {
@@ -345,6 +449,7 @@ void battery::run(void) {
 * Utility methods
 *
 ********************************************************************/
+
 
 float battery::milli_kelvin_to_c(float mk) {
     float kelvin = mk / 10.0;

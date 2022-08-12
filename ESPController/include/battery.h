@@ -3,6 +3,14 @@
 #include "hardware_interface.h"
 #include <mutex>
 
+// Max cell count we can support; some or all of these may be present
+// The return value to check on the hardware is a 2-byte value, meaning
+// a maximum of 16 bits can be flipped. Therefor, max value = 16.
+#define BATTERY_MAX_CELL_COUNT 16
+// Sometimes a "cell" will return 1 mV as a charge, even though that cell
+// does not exist. So we filter those out 
+#define BATTERY_MIN_CELL_VOLTAGE 50 // in mV
+
 class battery
 {
 public:
@@ -42,10 +50,13 @@ public:
 
     unsigned int get_stack_voltage(void);
     unsigned int get_pack_voltage(void);
+
+    unsigned int get_active_cell_count(void);
     
 private:
     void init(void);
     static void battery_task(void *param);
+    unsigned int get_active_cells(unsigned int *cells, unsigned int max);
     
     // Private variables
     static battery * battery_;
@@ -53,7 +64,9 @@ private:
     static TaskHandle_t battery_task_handle;
     static hardware_interface *hwi;
     static bool _has_data;
-
+    static unsigned int active_cell_count;    
+    static unsigned int active_cells[BATTERY_MAX_CELL_COUNT];   // 2 byte subcommand returns bits
+    static unsigned int cell_voltage[BATTERY_MAX_CELL_COUNT];
     // Cache for multi-byte subcommands
     // '64' is cargo culted over from the original code.
     unsigned int _dastatus5_cache[64];    

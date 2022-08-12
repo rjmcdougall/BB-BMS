@@ -130,7 +130,7 @@ void hardware_interface::sub_command(uint16_t command) {
     cmd[0] = LOW_BYTE(command);
     cmd[1] = HIGH_BYTE(command);
     
-    ESP_LOGD(TAG, "SubCommand: 0x%x", command);
+    //ESP_LOGD(TAG, "SubCommand: 0x%x", command);
     this->write(CMD_DIR_SUBCMD_LOW, cmd, 2);
 }
 
@@ -195,7 +195,7 @@ bool hardware_interface::_read_N(uint8_t reg, unsigned int *value, int num, bool
         ret = ESP_ERROR_CHECK_WITHOUT_ABORT(this->hal->readMultipleBytes(this->port, this->addr, reg, &tmp_value[0], num));
         if( ret == ESP_OK ) {
             for( int i = 0; i < num; i++ ) {
-                //ESP_LOGD(TAG, "SubCommand Response (byte %i): %i", i,tmp_value[i]);
+                //ESP_LOGD(TAG, "SubCommand Response (byte %i): %i", i, tmp_value[i]);
 
                 // Do you want to combine all the bytes in the result to one value (commond for single command -> single value)
                 // or is it an array of results you want to keep as a block?                
