@@ -38,7 +38,7 @@
 #define RUN_SAMPLE_TASK false       // This is just to exercise sample code - should usually be false
 #define RUN_DEBUG_ORIG_BQZ false    // For debugging an issue - should usually be false
 
-#define ENABLE_AUDIO_ALERTS true   // Disable this if you're developing in an area where alerts are frowned upon :)
+#define ENABLE_AUDIO_ALERTS false   // Disable this if you're developing in an area where alerts are frowned upon :)
 
 static const char *TAG = "diybms";
 

@@ -263,10 +263,25 @@ void display::display_cell_count(int count) {
 
 // Cell C: "301 mV"
 void display::display_cell_voltage_delta(int delta) {
+    int triangle_size = 12;
+    int triangle_middle = (int)(triangle_size/2);
+    int text_offset = triangle_middle;  // use the same offset as the middle.
+
+    // void drawTriangle(int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint32_t color)
+    M5.Lcd.drawTriangle(
+        DISPLAY_STATUS_C_CURSOR_X, DISPLAY_STATUS_C_CURSOR_Y + triangle_size,
+        DISPLAY_STATUS_C_CURSOR_X + triangle_size, DISPLAY_STATUS_C_CURSOR_Y + triangle_size,
+        DISPLAY_STATUS_C_CURSOR_X + triangle_middle, DISPLAY_STATUS_C_CURSOR_Y,
+        WHITE
+    );
+
     this->_display_status_cell(
-        DISPLAY_STATUS_C_CURSOR_X,
-        DISPLAY_STATUS_C_CURSOR_Y,
-        "~%i mV", delta
+        DISPLAY_STATUS_C_CURSOR_X + triangle_size + text_offset,
+        DISPLAY_STATUS_C_CURSOR_Y,        
+        // If your platform supports it, you could use unicode escape characters. 
+        // For Greek capital delta the code is \u0394:
+        // XXX doens't work :(         
+        "%i mV", delta
     );
 }
 

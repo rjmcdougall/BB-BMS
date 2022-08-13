@@ -20,7 +20,7 @@ static const int TASK_INTERVAL = 10000; // ms
 // Check more often if we're still booting; data will be coming in
 static const int TASK_BOOT_INTERVAL = 1000; // ms
 // How often are we doing an audio alert?
-static const int TASK_ALERT_INTERVAL = 5000; // ms
+static const int TASK_ALERT_INTERVAL = 3000; // ms
 
 // How often do we ring the alarm bell in a row?
 static const int STATUS_ALERT_COUNT = 3;
