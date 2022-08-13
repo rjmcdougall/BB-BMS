@@ -1,6 +1,7 @@
 #include "defines.h"
 #include "display.h"
 #include <mutex>
+#include <string>
 #include <stdarg.h>
 
 // This conflicts with (I THINK) mutex, where chrono.h also defines a min()
@@ -309,7 +310,7 @@ void display::display_battery(int charge) {
     M5.Lcd.setTextSize(DISPLAY_TEXT_SIZE);
 }
 
-void display::display_diagnostics(const char *format, ...) {
+void display::display_diagnostics(std::string msg) {
 
     M5.Lcd.fillRect( 
         DISPLAY_DIAGNOSTIC_X,                                                 
@@ -320,18 +321,13 @@ void display::display_diagnostics(const char *format, ...) {
     );
 
     M5.Lcd.setCursor( DISPLAY_DIAGNOSTIC_CURSOR_X, DISPLAY_DIAGNOSTIC_CURSOR_Y );
+        
+    ESP_LOGD(TAG, "Diagnostic: %s", msg);
 
-    // Effectively wrapping 'printf':
-    // https://stackoverflow.com/questions/1056411/how-to-pass-variable-number-of-arguments-to-printf-sprintf
-    char buffer[DISPLAY_CHAR_BUFFER];
-    va_list args;
-    va_start (args, format);
-    vsnprintf (buffer, DISPLAY_CHAR_BUFFER -1, format, args);
-    
-    ESP_LOGD(TAG, "Diagnostic: %s", buffer);
+    // printf takes char*, not std::string
+    char* buffer = const_cast<char*>(msg.c_str());
     M5.Lcd.printf(buffer);
-    
-    va_end(args); 
+        
 }
 
 void display::display_border(int color) {

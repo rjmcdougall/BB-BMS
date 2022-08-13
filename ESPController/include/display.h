@@ -1,6 +1,7 @@
 #pragma once
 #include <defines.h>
 #include <mutex>
+#include <string>
 
 // This conflicts with (I THINK) mutex, where chrono.h also defines a min()
 // macro, as well as something in M5Core2. So including it here explicitly
@@ -41,7 +42,7 @@ public:
     void clear(void);    
     void display_error(const char *format, ...);
     void display_battery(int charge);    
-    void display_diagnostics(const char *format, ...);
+    void display_diagnostics(std::string msg);
     void display_cell_temp(int min_temp, int max_temp);
     void display_cell_voltage_delta(int delta);
     void display_cell_count(int count);

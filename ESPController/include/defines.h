@@ -5,6 +5,8 @@
 ********************************************************************/
 #pragma once
 
+#include <iostream>
+#include <string>
 #include "esp_log.h"
 #include <Arduino.h>
 

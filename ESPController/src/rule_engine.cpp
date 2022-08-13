@@ -39,7 +39,7 @@ std::mutex rule_engine::run_all_rules_mutex_;
 const int rule_engine::_rule_count = RELAY_RULES;
 bool rule_engine::_rule_outcome[RELAY_RULES] = {false};
 bool rule_engine::_has_data = false;
-int rule_engine::_error_count = 0;                  // Amount of rules that failed
+int rule_engine::_error_count = 0;                   // Amount of rules that failed
 int rule_engine::_error_rules[RELAY_RULES] = {-1};   // Rule numbers that failed
 
 /********************************************************************
@@ -113,7 +113,7 @@ int rule_engine::get_all_rule_outcomes( bool *outcome ) {
 
 // Create a copy - don't want the caller to mess up the contents of our
 // checks. Returns the amount of rules we FAILED so they can iterate
-int rule_engine::get_rule_outcomes( bool *outcome ) {
+int rule_engine::get_error_rule_outcomes( int *outcome ) {
     if( !this->has_data() ) {
         ESP_LOGD(TAG, "No data yet - returning 0");
         return 0;
@@ -122,6 +122,7 @@ int rule_engine::get_rule_outcomes( bool *outcome ) {
     int rv = this->_error_count;
 
     for( int i = 0; i < this->_error_count; i++ ) {
+        ESP_LOGD(TAG, "Returning error code: %i at index %i", this->_error_rules[i], i);
         outcome[i] = this->_error_rules[i];
     }
 
@@ -320,8 +321,7 @@ void rule_engine::_run_all_rules() {
 
             if( this->_rule_outcome[i] == true ) {
                 ESP_LOGE(TAG, "ERROR: Rule %i triggered", i);
-                _tmp_error_count += 1;
-                this->_error_rules[_tmp_error_count] = i;
+                this->_error_rules[_tmp_error_count++] = i;
             }
         }
 

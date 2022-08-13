@@ -1,6 +1,8 @@
 #include "defines.h"
 #include "status.h"
 #include <mutex>
+#include <iostream>
+#include <string>
 
 /********************************************************************
  * Singleton class! Implemented using:
@@ -23,8 +25,8 @@ static const int TASK_ALERT_INTERVAL = 5000; // ms
 static const int STATUS_ALERT_COUNT = 3;
 
 
-static const char *TASK_STATUS_OK = "Status: OK";
-static const char *TASK_STATUS_BOOT = "Status: Booting";
+static const std::string TASK_STATUS_OK = std::string("Status: OK");
+static const std::string TASK_STATUS_BOOT = std::string("Status: Booting");
 
 TaskHandle_t status::status_task_handle = NULL;
 TaskHandle_t status::status_task_alert_handle = NULL;
@@ -111,7 +113,7 @@ void status::status_task(void *param) {
     for(;;) {
         // Depending on whether we have all data or not, we'll return to this task earlier or later.
         int interval = TASK_INTERVAL;
-        char *status = (char *)TASK_STATUS_OK;
+        std::string status = TASK_STATUS_OK;
 
         // // XXX Can we just wrap this???
         if( DEBUG_TASKS ) {
@@ -138,18 +140,23 @@ void status::status_task(void *param) {
         bool display_error_border = false;
         if( re->has_data() ) {
             // Max amount of rules we can have
-            bool rules[re->max_rule_count()]; 
-            int error_count = re->get_rule_outcomes( &rules[0] );
-            
+            int rules[re->max_rule_count()]; 
+            int error_count = re->get_error_rule_outcomes( &rules[0] );
+
+            // Ok, there was some sort of problem
             if(error_count) {
                 display_error_border = true;
-                status = (char * )"ERROR COUNT: XXX TODO";
+                status = std::string("ERRORS: ");
+                for( int i = 0; i < error_count; i++ )  {
+                    status = status + std::to_string(rules[i]) + " ";
+                }
             }
         }    
 
         if( !bat->has_data() || !pack->has_data() || !re->has_data() ) {
             interval = TASK_BOOT_INTERVAL;
-            status = (char *)TASK_STATUS_BOOT;
+            //status = (char *)TASK_STATUS_BOOT;
+            std::string s = TASK_STATUS_BOOT;
         }
 
         // everything oK?

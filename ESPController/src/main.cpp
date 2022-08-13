@@ -13,6 +13,7 @@
 #include "status.h"
 #include "audio.h"
 #include "display.h"
+#include <string>
 
 #include "bq34z100.h"
 
@@ -159,7 +160,7 @@ void loop()
 
         d->clear();
         d->display_battery(charge);
-        d->display_diagnostics("Hello: %s", "world");
+        d->display_diagnostics(std::string("Hell world"));
         delay(10000);
     }
     // d->lcd.setCursor(10,10);    

@@ -5,6 +5,8 @@
 #include "battery.h"
 #include "display.h"
 #include "audio.h"
+#include <string>
+#include <iostream>
 #include <mutex>
 
 class status

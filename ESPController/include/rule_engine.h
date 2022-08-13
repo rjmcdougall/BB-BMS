@@ -83,7 +83,7 @@ public:
     bool is_hardware_connected(); 
     bool has_data(); 
     int max_rule_count();
-    int get_rule_outcomes( bool *outcome );
+    int get_error_rule_outcomes( int *outcome );
     int get_all_rule_outcomes( bool *outcome );
     int get_active_error_count();
     bool is_battery_module_under_min_temp();
