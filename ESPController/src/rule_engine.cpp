@@ -24,7 +24,7 @@
 static const char *TAG = "rule_engine";
 
 static const int TASK_SIZE = TASK_STACK_SIZE_LARGE;
-static const int TASK_INTERVAL = 1000; // ms
+static const int TASK_INTERVAL = 10000; // ms
 
 
 TaskHandle_t rule_engine::rule_engine_task_handle = NULL;

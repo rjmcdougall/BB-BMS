@@ -25,6 +25,9 @@ public:
     static audio *GetInstance();
 
     void play_alert(int cnt);
+    void enable_alerts();
+    void disable_alerts();
+    bool are_alerts_enabled();
     
     /********************************************************************
      * audio information methods
@@ -38,7 +41,7 @@ private:
     static audio * audio_;
     static std::mutex mutex_;
     static TaskHandle_t audio_task_handle;
-
+    static bool _alerts_enabled;
     
     /********************************************************************
      * audio information methods

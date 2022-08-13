@@ -322,10 +322,9 @@ void display::display_diagnostics(std::string msg) {
 
     M5.Lcd.setCursor( DISPLAY_DIAGNOSTIC_CURSOR_X, DISPLAY_DIAGNOSTIC_CURSOR_Y );
         
-    ESP_LOGD(TAG, "Diagnostic: %s", msg);
-
     // printf takes char*, not std::string
     char* buffer = const_cast<char*>(msg.c_str());
+    ESP_LOGD(TAG, "Diagnostic: %s", buffer);
     M5.Lcd.printf(buffer);
         
 }

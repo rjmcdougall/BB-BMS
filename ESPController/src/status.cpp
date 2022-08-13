@@ -3,6 +3,7 @@
 #include <mutex>
 #include <iostream>
 #include <string>
+#include <M5Core2.h>
 
 /********************************************************************
  * Singleton class! Implemented using:

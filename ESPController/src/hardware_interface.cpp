@@ -106,7 +106,9 @@ void hardware_interface::_init_once(void) {
         // Configure the I2C driver: https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/i2c.html
         this->hal->ConfigureI2C(TCA6408Interrupt, TCA9534AInterrupt);
         this->hal->ConfigureVSPI();
-        this->hal->SwapGPIO0ToOutput();
+
+        // THIS BREAKS AUDIO - do not use this! 
+        //this->hal->SwapGPIO0ToOutput();
     
         _ENVIRONMENT_IS_INITIALIZED = true;
     }            

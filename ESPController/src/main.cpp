@@ -38,6 +38,8 @@
 #define RUN_SAMPLE_TASK false       // This is just to exercise sample code - should usually be false
 #define RUN_DEBUG_ORIG_BQZ false    // For debugging an issue - should usually be false
 
+#define ENABLE_AUDIO_ALERTS true   // Disable this if you're developing in an area where alerts are frowned upon :)
+
 static const char *TAG = "diybms";
 
 /********************************************************************
@@ -56,10 +58,18 @@ void setup()
      * https://github.com/m5stack/M5Core2/issues/92
      * ************************************************/
     M5.begin();
-    //M5.Spk.DingDong();
+
+    audio *a = audio::GetInstance();
+    if( ENABLE_AUDIO_ALERTS ){
+        // "Boot up sound"
+        M5.Spk.DingDong();
+        a->enable_alerts();
+    } else {
+        a->disable_alerts();
+    }        
 
     display *d = display::GetInstance();
-
+    
     /* Interact with the hardware - use this as a (thin) wrapper around 
     * HAL, and a way to avoid repeating common code (address, port, etc)
     * This will also allow replacing HAL at some point, should we so choose
@@ -70,8 +80,7 @@ void setup()
     static HAL_ESP32 hal;
     static hardware_interface bq_hwi = hardware_interface(BQ_ADDR, &hal, I2C_NUM_1);
     static hardware_interface bqz_hwi = hardware_interface(BQZ_ADDR, &hal, I2C_NUM_1);
-    bq34z100 bqz = bq34z100(BQZ_ADDR, &hal, I2C_NUM_1);
-
+    
     // XXX TODO: This does not seem to reset the log level - DEBUG remains in effect
     // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html#_CPPv415esp_log_level_t
     //esp_log_level_set("*", ESP_LOG_ERROR);
@@ -138,11 +147,10 @@ void setup()
             ESP_LOGD(TAG, "PACK rv: %i", tmp_value);
         }
 
+        bq34z100 bqz = bq34z100(BQZ_ADDR, &hal, I2C_NUM_1);
         uint8_t soc = bqz.state_of_charge();
         ESP_LOGD(TAG, "BQZ rv: %i", soc);
     }
-
-
 }
 
 /********************************************************************

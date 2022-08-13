@@ -28,6 +28,9 @@ TaskHandle_t audio::audio_task_handle = NULL;
 audio* audio::audio_{nullptr};
 std::mutex audio::mutex_;
 
+// Audio alerts are disabled by default
+bool audio::_alerts_enabled = false;
+
 
 /********************************************************************
 *
@@ -63,15 +66,45 @@ audio::audio(void) {
 
 void audio::init(void) {
     ESP_LOGD(TAG, "Initializing Audio");
+    // JUST in case
+    M5.Axp.SetSpkEnable(1);
 }
 
+/********************************************************************
+*
+* Status functions
+*
+********************************************************************/
+
+bool audio::are_alerts_enabled() {
+    return this->_alerts_enabled;
+}
+
+void audio::enable_alerts() {
+    ESP_LOGD(TAG, "Alerts enabled");
+    this->_alerts_enabled = true;
+}
+
+void audio::disable_alerts() {
+    ESP_LOGD(TAG, "Alerts disabled");    
+    this->_alerts_enabled = false;
+}
+    
+
+/********************************************************************
+*
+* Functionality
+*
+********************************************************************/
 
 void audio::play_alert(int cnt) {
 
     ESP_LOGD(TAG, "BEEP x %i", cnt);
-    for( int i = 0; i < cnt; i++ ) {
-        // XXX re-enable - turned off not to annoy people on the flight :)
-        //M5.Spk.DingDong();
-        delay(100);
+
+    if( this->are_alerts_enabled() ) {
+        for ( int i = 0; i < cnt; i++ ) {
+            M5.Spk.DingDong();
+            delay(300);
+        }            
     }
 }
