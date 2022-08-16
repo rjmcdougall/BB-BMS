@@ -12,6 +12,8 @@
  ********************************************************************/
 
 // XXX TODO: Check these numbers
+#define RULE_LOW_STATE_OF_CHARGE 30         // in %
+#define RULE_CRITICAL_STATE_OF_CHARGE 15    // in %
 #define RULE_MAX_CELL_TEMP 60.0     // in Celsius
 #define RULE_MIN_CELL_TEMP -0.1     // in Celsius - set below 0, as it's initialized with 0
 #define RULE_MAX_CELL_VOLTAGE 4000  // milliVolts
@@ -149,6 +151,22 @@ bool rule_engine::is_hardware_connected() {
     bool rv = this->battery_->is_connected() && this->pack_->is_connected();
     if( !rv ) {
         ESP_LOGD(TAG, "Hardware is disconnected");
+    }
+    return rv;
+}
+
+bool rule_engine::is_state_of_charge_low() {
+    bool rv = this->pack_->state_of_charge() < RULE_LOW_STATE_OF_CHARGE;
+    if(rv) {
+        ESP_LOGD(TAG, "State of charge LOW: < %i", RULE_LOW_STATE_OF_CHARGE);
+    }
+    return rv;
+}
+
+bool rule_engine::is_state_of_charge_critical() {
+    bool rv = this->pack_->state_of_charge() < RULE_CRITICAL_STATE_OF_CHARGE;
+    if(rv) {
+        ESP_LOGD(TAG, "State of charge CRITICAL: < %i", RULE_CRITICAL_STATE_OF_CHARGE);
     }
     return rv;
 }

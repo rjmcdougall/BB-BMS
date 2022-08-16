@@ -122,11 +122,50 @@ void status::status_task(void *param) {
             ESP_LOGD(TAG, "Current HWM/Stack = %i/%i", uxHighWaterMark, TASK_SIZE);
         }
 
-        // Visual displays    
+
+        // First, find out if we have any errors to display; if so, we color the background red (or
+        // yellow in the future for warnings). 
+
+        // Use temp value so we can draw the background when needed
+        // XXX clever hack here; the colors for the display are ints. We use int = 0 to flag no
+        // issue, and any other color is a non-zero int, so we can use that to signal both the
+        // need for display & the color itself.
+        int display_error_background = 0;
+        int display_battery_charge = 0;
+
+        if( re->has_data() ) {
+            // Max amount of rules we can have
+            int rules[re->max_rule_count()]; 
+            int error_count = re->get_error_rule_outcomes( &rules[0] );
+
+            // Ok, there was some sort of problem
+            if(error_count) {
+                display_error_background = d->DISPLAY_COLOR_ERROR;
+                status = std::string("ERRORS: ");
+                for( int i = 0; i < error_count; i++ )  {
+                    status = status + std::to_string(rules[i]) + " ";
+                }
+            }
+
+            // Let's check the state of charge
+            display_battery_charge = 
+                re->is_state_of_charge_critical() ? d->DISPLAY_COLOR_ERROR :    // bad
+                re->is_state_of_charge_low()      ? d->DISPLAY_COLOR_WARNING :  // getting bad
+                display_battery_charge;                                         // default
+
+        }    
+
+        // Visual displays - clear the screen and set the background        
         d->clear();
 
+        // everything oK?
+        // This has to come first, because it's the background
+        if( display_error_background ) {
+            d->display_background(display_error_background);
+        }
+
         if( pack->has_data() ) {
-            d->display_battery( pack->state_of_charge() );
+            d->display_battery( pack->state_of_charge(), display_battery_charge );
         }
 
         if( bat->has_data() ) {
@@ -137,34 +176,13 @@ void status::status_task(void *param) {
             d->display_stack_voltage( bat->get_stack_voltage()/1000 );
         }    
 
-        // Use temp value so we can draw the border last
-        bool display_error_border = false;
-        if( re->has_data() ) {
-            // Max amount of rules we can have
-            int rules[re->max_rule_count()]; 
-            int error_count = re->get_error_rule_outcomes( &rules[0] );
-
-            // Ok, there was some sort of problem
-            if(error_count) {
-                display_error_border = true;
-                status = std::string("ERRORS: ");
-                for( int i = 0; i < error_count; i++ )  {
-                    status = status + std::to_string(rules[i]) + " ";
-                }
-            }
-        }    
-
         if( !bat->has_data() || !pack->has_data() || !re->has_data() ) {
             interval = TASK_BOOT_INTERVAL;
-            //status = (char *)TASK_STATUS_BOOT;
-            std::string s = TASK_STATUS_BOOT;
+            status = TASK_STATUS_BOOT;
         }
 
-        // everything oK?
         d->display_diagnostics(status);
-        if( display_error_border) {
-            d->display_border(d->DISPLAY_COLOR_ERROR);
-        }
+
 
         ESP_LOGD("TAG", "Task sleeping for: %i ms", interval);
         vTaskDelay( interval );

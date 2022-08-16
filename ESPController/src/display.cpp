@@ -67,6 +67,7 @@ static const int DISPLAY_ERROR_BG_COLOR = RED;
 // Battery display settings
 static const int DISPLAY_BATTERY_BORDER_COLOR = LIGHTGREY;
 static const int DISPLAY_BATTERY_CHARGE_COLOR = GREEN;
+static const int DISPLAY_BATTERY_DRAIN_COLOR = DARKGREY;
 static const int DISPLAY_BATTERY_BORDER = 5;
 static const int DISPLAY_BATTERY_HEIGHT = 60;
 static const int DISPLAY_BATTERY_TEXT_SIZE = 3;
@@ -294,8 +295,13 @@ void display::display_stack_voltage(float voltage) {
     );
 }
 
-// Charge percentage
+// Charge percentage, defaultc color
 void display::display_battery(int charge) {
+    this->display_battery( charge, DISPLAY_BATTERY_CHARGE_COLOR );
+}
+
+// Charge percentage, with specific color
+void display::display_battery(int charge, int color) {
 
     // Draw the battery outline
     M5.Lcd.drawRect( 
@@ -313,8 +319,18 @@ void display::display_battery(int charge) {
         DISPLAY_BORDER_WIDTH + DISPLAY_BATTERY_BORDER,          // y start - offset to get a border around the battery
         battery_width,                                          // Width  - we fill in the above rect
         DISPLAY_BATTERY_HEIGHT - DISPLAY_BATTERY_BORDER * 2,    // Height - we fill in the above rect
-        DISPLAY_BATTERY_CHARGE_COLOR                            // Content color
+        color                                                   // Content color
     );
+
+    // Fill the battery 'drain'
+    M5.Lcd.fillRect( 
+        DISPLAY_BORDER_WIDTH + DISPLAY_BATTERY_BORDER + battery_width,  // x start - right next to the charge
+        DISPLAY_BORDER_WIDTH + DISPLAY_BATTERY_BORDER,                  // y start - same as the charge
+        DISPLAY_BATTERY_WIDTH - DISPLAY_BATTERY_BORDER - battery_width, // Width  - the reamining width
+        DISPLAY_BATTERY_HEIGHT - DISPLAY_BATTERY_BORDER * 2,            // Height - we fill in the above rect
+        DISPLAY_BATTERY_DRAIN_COLOR                                     // Content color
+    );
+    
 
     // Print the charge percentage
     M5.Lcd.setTextSize(DISPLAY_BATTERY_TEXT_SIZE);
@@ -353,4 +369,9 @@ void display::display_border(int color) {
         M5.Lcd.height(),    // Height
         color               // Border color
     );
+}
+
+void display::display_background(int color) {
+    // Draw the battery outline
+    M5.Lcd.fillScreen(color);
 }

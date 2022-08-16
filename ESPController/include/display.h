@@ -38,16 +38,21 @@ public:
 
     static const int DISPLAY_COLOR_ERROR = RED;
     static const int DISPLAY_COLOR_WARNING = YELLOW;
+    static const int DISPLAY_COLOR_OK = GREEN;
 
     void clear(void);    
     void display_error(const char *format, ...);
-    void display_battery(int charge);    
+    void display_battery(int charge);  
+    // if you have opinions on what color to use for the charge; useful for
+    // rule engine input  
+    void display_battery(int charge, int color);    
     void display_diagnostics(std::string msg);
     void display_cell_temp(int min_temp, int max_temp);
     void display_cell_voltage_delta(int delta);
     void display_cell_count(int count);
     void display_stack_voltage(float voltage);
     void display_border(int color);
+    void display_background(int color);
 
 private:
     void init(void);
