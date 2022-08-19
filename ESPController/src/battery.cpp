@@ -2,6 +2,12 @@
 #include "battery.h"
 #include <mutex>
 
+// We can get this from dastatus, but if the cell config on the hardware
+// is wrong, one of them will report 0, and therefor all the numbers will
+// be off. This actively reads all voltages of known activey cells, and 
+// keeps track of the min/max cell voltages that way.
+#define FEATURE_USE_MANUAL_MIN_MAX_CELL_VOLTAGE_COUNT true
+
 /********************************************************************
  * Technical reference / battery spec:
  * 
@@ -114,7 +120,10 @@ uint16_t TotalNumberOfCells() { return mysettings.totalNumberOfBanks * mysetting
 */
 unsigned int battery::cell_voltage[BATTERY_MAX_CELL_COUNT] = {0};   // individual voltages
 unsigned int battery::active_cells[BATTERY_MAX_CELL_COUNT] = {0};   // the slots of the active cells
-unsigned int battery::active_cell_count = 0;                       // the amount of active cells
+unsigned int battery::active_cell_count = 0;                        // the amount of active cells
+
+unsigned int battery::_min_cell_voltage = 0; // in milivolt
+unsigned int battery::_max_cell_voltage = 0; // in milivolt    
 
 
 TaskHandle_t battery::battery_task_handle = NULL;
@@ -165,6 +174,9 @@ battery::battery(hardware_interface *bq_hwi) {
 
 void battery::init(void) {
     ESP_LOGD(TAG, "Battery connected: %s", this->hwi->is_connected() ? "true" : "false");
+
+    // Report on features
+    ESP_LOGD(TAG, "Feature Manual Min/Max Cell Voltage Enabled: %s", FEATURE_USE_MANUAL_MIN_MAX_CELL_VOLTAGE_COUNT ? "true" : "false");
 }
 
 /********************************************************************
@@ -341,11 +353,11 @@ float battery::min_cell_temp(void) {
 // and update the status that way.
 // millivolts
 unsigned int battery::max_cell_voltage(void) {
-    return this->_read_dastatus5_cache(DASTATUS_MAXCELL);    
+    return FEATURE_USE_MANUAL_MIN_MAX_CELL_VOLTAGE_COUNT ? this->_max_cell_voltage : this->_read_dastatus5_cache(DASTATUS_MAXCELL);    
 }
 // millivolts
 unsigned int battery::min_cell_voltage(void) {
-    return this->_read_dastatus5_cache(DASTATUS_MINCELL);    
+    return FEATURE_USE_MANUAL_MIN_MAX_CELL_VOLTAGE_COUNT ? this->_min_cell_voltage : this->_read_dastatus5_cache(DASTATUS_MINCELL);    
 }
 
 // Stack & Pack Voltage
@@ -370,6 +382,28 @@ unsigned int battery::get_pack_voltage(void) {
         return 0;
     }        
 }
+
+bool battery::_update_min_max_cell_voltage(int cell, unsigned int voltage) {
+    ESP_LOGD(TAG, "Updating Min/Max Cell Voltage with Cell %i - %i mV", cell, voltage);
+
+    bool change_detected = false;
+
+    // Update min
+    if( this->_min_cell_voltage == 0 || this->_min_cell_voltage > voltage ) {
+        bool change_detected = true;
+        this->_min_cell_voltage = voltage;
+        ESP_LOGD(TAG, "Cell %i has new minimum voltage: %i mV", cell, voltage);
+    }
+
+    // Update max
+    if( this->_max_cell_voltage == 0 || this->_max_cell_voltage < voltage ) {
+        bool change_detected = true;
+        this->_max_cell_voltage = voltage;
+        ESP_LOGD(TAG, "Cell %i has new maximum voltage: %i mV", cell, voltage);
+    }
+
+    return change_detected;
+};
 
 /********************************************************************
 *
@@ -412,6 +446,10 @@ void battery::battery_task(void *param) {
                 battery_->cell_voltage[i] = v;
 
                 ESP_LOGD(TAG, "Voltage for cell %i: %i", cell_number, v);
+
+                if( FEATURE_USE_MANUAL_MIN_MAX_CELL_VOLTAGE_COUNT ) {
+                    battery_->_update_min_max_cell_voltage(cell_number, v);
+                }
             }
 
             // XXX TODO: these are in 'userV' units, which aren't described :( what does this value mean?
@@ -429,6 +467,7 @@ void battery::battery_task(void *param) {
             ESP_LOGD(TAG, "Battery - Min Temp: %g - Max Temp: %g", battery_->min_cell_temp(), battery_->max_cell_temp());
             ESP_LOGD(TAG, "Battery - Min mVolt: %i - Max mVolt: %i", battery_->min_cell_voltage(), battery_->max_cell_voltage());
 
+            
             battery_->_has_data = true;
 
             ESP_LOGD("TAG", "Task sleeping for: %i ms", TASK_INTERVAL);

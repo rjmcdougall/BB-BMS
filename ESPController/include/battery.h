@@ -71,12 +71,15 @@ private:
     // '64' is cargo culted over from the original code.
     unsigned int _dastatus5_cache[64];    
     
+    static unsigned int _min_cell_voltage; // in milivolt
+    static unsigned int _max_cell_voltage; // in milivolt    
 
     /********************************************************************
      * Battery information methods
      ********************************************************************/
     bool _fet_status(int reg);
     bool _update_dastatus5_cache(void);
+    bool _update_min_max_cell_voltage(int cell, unsigned int voltage);
     unsigned int _read_dastatus5_cache(unsigned int cmd);
     float milli_kelvin_to_c(float mk);
 
