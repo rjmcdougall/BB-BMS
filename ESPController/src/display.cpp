@@ -253,14 +253,14 @@ void display::display_cell_temp(int min_temp, int max_temp) {
 }
 
 // Cell B: "3 Cells"
-void display::display_cell_count(int count) {
+void display::display_cell_count(int count, bool is_charging) {
     this->_display_status_cell(
         DISPLAY_STATUS_B_CURSOR_X,
         DISPLAY_STATUS_B_CURSOR_Y,
-        "%i Cells", count
+        // Note if it's charging or not (discharging/idle)
+        "%i Cells %s", count, (is_charging ? "(++)" : "")
     );
 }
-
 
 // Cell C: "301 mV"
 void display::display_cell_voltage_delta(int delta) {

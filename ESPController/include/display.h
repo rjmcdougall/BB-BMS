@@ -49,7 +49,7 @@ public:
     void display_diagnostics(std::string msg);
     void display_cell_temp(int min_temp, int max_temp);
     void display_cell_voltage_delta(int delta);
-    void display_cell_count(int count);
+    void display_cell_count(int count, bool is_charging);
     void display_stack_voltage(float voltage);
     void display_border(int color);
     void display_background(int color);

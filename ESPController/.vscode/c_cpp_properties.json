@@ -441,7 +441,7 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=60103",
+                "PLATFORMIO=60104",
                 "ARDUINO_M5STACK_Core2",
                 "BOARD_HAS_PSRAM",
                 "DEBUG_ESP_PORT=Serial",
